@@ -72,6 +72,9 @@ void PlotpmtsvsTIME() {
         graph->GetXaxis()->SetTitle("Time (16ns)");  // Modify if you know the time scale
         graph->GetYaxis()->SetTitle("ADC Value");
 
+        // Set the y-axis range for PMTs to [0, 1500]
+        graph->GetYaxis()->SetRangeUser(0, 1500);
+
         // Draw the graph on the combined canvas
         combinedCanvas->cd(plotIndex++);
         graph->Draw("AL");
@@ -118,6 +121,9 @@ void PlotpmtsvsTIME() {
         graph->GetXaxis()->SetTitle("Time (16ns)");  // Modify if you know the time scale
         graph->GetYaxis()->SetTitle("ADC Value");
 
+        // Set the y-axis range for SiPMs to [100, 250]
+        graph->GetYaxis()->SetRangeUser(180, 250);
+
         // Draw the graph on the combined canvas
         combinedCanvas->cd(plotIndex++);
         graph->Draw("AL");
@@ -156,6 +162,9 @@ void PlotpmtsvsTIME() {
     event61Graph->SetTitle(eventTitle);
     event61Graph->GetXaxis()->SetTitle("Time (16ns)");  // Modify if you know the time scale
     event61Graph->GetYaxis()->SetTitle("ADC Value");
+
+    // Set the y-axis range for Event 61 to [0, 1500] (same as PMTs)
+    event61Graph->GetYaxis()->SetRangeUser(0, 1500);
 
     // Draw the Event 61 graph on the combined canvas
     combinedCanvas->cd(plotIndex++);

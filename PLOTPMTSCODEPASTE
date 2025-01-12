@@ -1,0 +1,131 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TCanvas.h>
+#include <TGraph.h>
+#include <TString.h>
+#include <iostream>
+#include <TAxis.h>
+#include <TLatex.h>
+#include <limits.h> // For SHRT_MAX and SHRT_MIN
+
+using namespace std;
+
+void PlotpmtsAndSipms(const char *fileName) {
+    // Open the ROOT file
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        cerr << "Error opening file: " << fileName << endl;
+        return;
+    }
+
+    // Access the TTree in the file
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        cerr << "Error accessing TTree 'tree'!" << endl;
+        file->Close();
+        return;
+    }
+
+    // Declare the adcVal array (23 channels, 45 samples per channel)
+    Short_t adcVal[23][45];
+    tree->SetBranchAddress("adcVal", adcVal);
+
+    // Get the number of entries in the TTree
+    Long64_t nEntries = tree->GetEntries();
+
+    // Determine the global min and max ADC values for consistent y-axis
+    Short_t minADC = SHRT_MAX;
+    Short_t maxADC = SHRT_MIN;
+
+    for (Long64_t j = 0; j < nEntries; j++) {
+        tree->GetEntry(j);  // Load the entry
+        for (int i = 0; i < 23; i++) {  // Loop through all channels
+            for (int k = 0; k < 45; k++) {  // Loop through 45 samples per channel
+                if (adcVal[i][k] < minADC) minADC = adcVal[i][k];
+                if (adcVal[i][k] > maxADC) maxADC = adcVal[i][k];
+            }
+        }
+    }
+
+    cout << "Global ADC range: [" << minADC << ", " << maxADC << "]" << endl;
+
+    // Define the PMT channel mapping (1 to 12) to adcVal indices (0 to 11)
+    int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
+
+    // Define the SiPM channel mapping (13 to 22) to adcVal indices (12 to 21)
+    int sipmChannelMap[10] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+
+    // Plot each PMT channel individually
+    for (int i = 0; i < 12; i++) {
+        TCanvas *canvas = new TCanvas(Form("PMT%d_canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
+        TGraph *graph = new TGraph();
+
+        TString title = Form("PMT %d Waveform", i + 1);
+        int adcIndex = pmtChannelMap[i];
+
+        for (int k = 0; k < 45; k++) {
+            double time = k * 16.0;  // Time in nanoseconds
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        graph->SetTitle(title);
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->GetXaxis()->SetRangeUser(0, 720); // Set x-axis range to 0–720 ns
+
+        // Set y-axis range for PMT channels
+        double yMax = (maxADC > 3097) ? maxADC : 4000;
+        graph->SetMinimum(minADC - 50); // Add some padding
+        graph->SetMaximum(yMax);
+
+        graph->Draw("AL");
+        canvas->SaveAs(Form("/home/manoja450/PLOTS/PMT%d_%s.png", i + 1, fileName));
+        delete graph;
+        delete canvas;
+    }
+
+    // Plot each SiPM channel individually with y-axis range [0, 250]
+    for (int i = 0; i < 10; i++) {
+        TCanvas *canvas = new TCanvas(Form("SiPM%d_canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
+        TGraph *graph = new TGraph();
+
+        TString title = Form("SiPM %d Waveform", i + 1);
+        int adcIndex = sipmChannelMap[i];
+
+        for (int k = 0; k < 45; k++) {
+            double time = k * 16.0;  // Time in nanoseconds
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        graph->SetTitle(title);
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->GetXaxis()->SetRangeUser(0, 720); // Set x-axis range to 0–720 ns
+        graph->SetMinimum(180);    // Set minimum y-axis value to 0
+        graph->SetMaximum(230);    // Set maximum y-axis value to 250
+
+        graph->Draw("AL");
+        canvas->SaveAs(Form("/home/manoja450/PLOTS/SiPM%d_%s.png", i + 1, fileName));
+        delete graph;
+        delete canvas;
+    }
+
+    // Close the file
+    file->Close();
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        cerr << "Usage: " << argv[0] << " <file1> <file2> ..." << endl;
+        return 1;
+    }
+
+    for (int i = 1; i < argc; i++) {
+        cout << "Processing file: " << argv[i] << endl;
+        PlotpmtsAndSipms(argv[i]);
+    }
+
+    return 0;
+}

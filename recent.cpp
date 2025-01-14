@@ -1,14 +1,19 @@
+#include <iostream>
 #include <TFile.h>
 #include <TTree.h>
-#include <TCanvas.h>
 #include <TGraph.h>
-#include <TString.h>
-#include <iostream>
+#include <TCanvas.h>
 #include <TAxis.h>
-#include <TLatex.h>
-#include <limits.h> // For SHRT_MAX and SHRT_MIN
+#include <vector>
+#include <cmath>
+#include <algorithm>
 
 using namespace std;
+
+// Function to round up to the nearest multiple of a given bin size
+double roundUpToBin(double value, double binSize) {
+    return ceil(value / binSize) * binSize;
+}
 
 void PlotpmtsAndSipms(const char *fileName) {
     // Open the ROOT file
@@ -37,22 +42,28 @@ void PlotpmtsAndSipms(const char *fileName) {
     // Get the number of entries in the TTree
     Long64_t nEntries = tree->GetEntries();
 
-    // Determine the maximum pulseH values for PMTs and SiPMs separately
-    double maxPMT = SHRT_MIN; // Variable to track maximum PMT pulse height
-    double maxSiPM = SHRT_MIN; // Variable to track maximum SiPM pulse height
+    // Vectors to store pulse heights for PMTs and SiPMs
+    vector<double> pmtPulseHeights;
+    vector<double> sipmPulseHeights;
 
+    // Loop through the entries to find the max pulse heights
     for (Long64_t j = 0; j < nEntries; j++) {
         tree->GetEntry(j);  // Load the entry
         for (int i = 0; i < 12; i++) {  // PMTs (indices 0–11)
-            if (pulseH[i] > maxPMT) maxPMT = pulseH[i];
+            pmtPulseHeights.push_back(pulseH[i]);
         }
         for (int i = 12; i < 22; i++) {  // SiPMs (indices 12–21)
-            if (pulseH[i] > maxSiPM) maxSiPM = pulseH[i];
+            sipmPulseHeights.push_back(pulseH[i]);
         }
     }
 
-    cout << "Max PMT pulse height: " << maxPMT << endl;
-    cout << "Max SiPM pulse height: " << maxSiPM << endl;
+    // Find the maximum pulse height for PMTs and SiPMs
+    double maxPMT = *max_element(pmtPulseHeights.begin(), pmtPulseHeights.end());
+    double maxSiPM = *max_element(sipmPulseHeights.begin(), sipmPulseHeights.end());
+
+    // Calculate the y-axis max value for PMTs and SiPMs
+    double maxPMTYAxis = roundUpToBin(maxPMT, 50);  // Round up to the nearest 50 for PMTs
+    double maxSiPMYAxis = roundUpToBin(maxSiPM, 10);  // Round up to the nearest 10 for SiPMs
 
     // Define the PMT channel mapping (1 to 12) to adcVal indices (0 to 11)
     int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
@@ -70,6 +81,7 @@ void PlotpmtsAndSipms(const char *fileName) {
 
         for (int k = 0; k < 45; k++) {
             double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
+            if (time > 720) break;  // Stop plotting beyond 720 ns
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
@@ -78,11 +90,11 @@ void PlotpmtsAndSipms(const char *fileName) {
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
         graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxPMT); // Set maximum Y-axis value to the highest PMT pulse height
-        graph->GetXaxis()->SetRangeUser(0, 720); // Set x-axis range to 0–720 ns
+        graph->SetMaximum(maxPMTYAxis); // Set maximum Y-axis value dynamically for PMTs
+        graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
 
         graph->Draw("AL");
-        canvas->SaveAs(Form("PMT%d_%s.png", i + 1, fileName));
+        canvas->SaveAs(Form("/root/gears/waveform720ns/PMT%d_%s.png", i + 1, fileName));  // Save plot to specified directory
         delete graph;
         delete canvas;
     }
@@ -97,6 +109,7 @@ void PlotpmtsAndSipms(const char *fileName) {
 
         for (int k = 0; k < 45; k++) {
             double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
+            if (time > 720) break;  // Stop plotting beyond 720 ns
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
@@ -105,11 +118,11 @@ void PlotpmtsAndSipms(const char *fileName) {
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
         graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxSiPM); // Set maximum Y-axis value to the highest SiPM pulse height
-        graph->GetXaxis()->SetRangeUser(0, 720); // Set x-axis range to 0–720 ns
+        graph->SetMaximum(maxSiPMYAxis); // Set maximum Y-axis value dynamically for SiPMs
+        graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
 
         graph->Draw("AL");
-        canvas->SaveAs(Form("SiPM%d_%s.png", i + 1, fileName));
+        canvas->SaveAs(Form("/root/gears/waveform720ns/SiPM%d_%s.png", i + 1, fileName));  // Save plot to specified directory
         delete graph;
         delete canvas;
     }
@@ -118,16 +131,15 @@ void PlotpmtsAndSipms(const char *fileName) {
     file->Close();
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        cerr << "Usage: " << argv[0] << " <file1> <file2> ..." << endl;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cerr << "Usage: " << argv[0] << " <root_file>" << endl;
         return 1;
     }
 
-    for (int i = 1; i < argc; i++) {
-        cout << "Processing file: " << argv[i] << endl;
-        PlotpmtsAndSipms(argv[i]);
-    }
+    const char* fileName = argv[1];  // Get the file name from the command-line argument
+    PlotpmtsAndSipms(fileName);
 
     return 0;
 }
+

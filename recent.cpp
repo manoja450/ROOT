@@ -5,14 +5,36 @@
 #include <TCanvas.h>
 #include <TAxis.h>
 #include <vector>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <map>
 
 using namespace std;
 
-// Function to round up to the nearest multiple of a given bin size
+// Function to find the nearest whole number above the maximum value
 double roundUpToBin(double value, double binSize) {
-    return ceil(value / binSize) * binSize;
+    return ceil((value + 0.5) / binSize) * binSize; // Add a small offset to ensure proper rounding
+}
+
+// Function to calculate the mode of pulse heights
+double getMode(const vector<double>& pulseHeights) {
+    // Find the most frequent pulse height
+    map<double, int> frequencyMap;
+    for (double value : pulseHeights) {
+        frequencyMap[value]++;
+    }
+
+    // Find the mode (the value with the highest frequency)
+    double mode = pulseHeights[0];
+    int maxCount = 0;
+    for (const auto& entry : frequencyMap) {
+        if (entry.second > maxCount) {
+            mode = entry.first;
+            maxCount = entry.second;
+        }
+    }
+
+    return mode;
 }
 
 void PlotpmtsAndSipms(const char *fileName) {
@@ -46,7 +68,7 @@ void PlotpmtsAndSipms(const char *fileName) {
     vector<double> pmtPulseHeights;
     vector<double> sipmPulseHeights;
 
-    // Loop through the entries to find the max pulse heights
+    // Loop through the entries to find the max pulse heights and store pulse heights
     for (Long64_t j = 0; j < nEntries; j++) {
         tree->GetEntry(j);  // Load the entry
         for (int i = 0; i < 12; i++) {  // PMTs (indices 0–11)
@@ -61,9 +83,9 @@ void PlotpmtsAndSipms(const char *fileName) {
     double maxPMT = *max_element(pmtPulseHeights.begin(), pmtPulseHeights.end());
     double maxSiPM = *max_element(sipmPulseHeights.begin(), sipmPulseHeights.end());
 
-    // Calculate the y-axis max value for PMTs and SiPMs
-    double maxPMTYAxis = roundUpToBin(maxPMT, 50);  // Round up to the nearest 50 for PMTs
-    double maxSiPMYAxis = roundUpToBin(maxSiPM, 10);  // Round up to the nearest 10 for SiPMs
+    // Display the maximum pulse heights in the terminal
+    cout << "Maximum PMT Pulse Height: " << maxPMT << endl;
+    cout << "Maximum SiPM Pulse Height: " << maxSiPM << endl;
 
     // Define the PMT channel mapping (1 to 12) to adcVal indices (0 to 11)
     int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
@@ -81,7 +103,6 @@ void PlotpmtsAndSipms(const char *fileName) {
 
         for (int k = 0; k < 45; k++) {
             double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
-            if (time > 720) break;  // Stop plotting beyond 720 ns
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
@@ -90,7 +111,7 @@ void PlotpmtsAndSipms(const char *fileName) {
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
         graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxPMTYAxis); // Set maximum Y-axis value dynamically for PMTs
+        graph->SetMaximum(maxPMT * 1.05); // Set maximum Y-axis value to 5% above the maximum PMT pulse height
         graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
 
         graph->Draw("AL");
@@ -109,7 +130,6 @@ void PlotpmtsAndSipms(const char *fileName) {
 
         for (int k = 0; k < 45; k++) {
             double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
-            if (time > 720) break;  // Stop plotting beyond 720 ns
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
@@ -118,7 +138,7 @@ void PlotpmtsAndSipms(const char *fileName) {
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
         graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxSiPMYAxis); // Set maximum Y-axis value dynamically for SiPMs
+        graph->SetMaximum(maxSiPM * 1.05); // Set maximum Y-axis value to 5% above the maximum SiPM pulse height
         graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
 
         graph->Draw("AL");
@@ -142,4 +162,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-

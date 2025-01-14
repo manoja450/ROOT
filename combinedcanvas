@@ -1,0 +1,137 @@
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TGraph.h>
+#include <TCanvas.h>
+#include <TAxis.h>
+#include <TPad.h>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <map>
+
+using namespace std;
+
+// Round up function
+double roundUpToBin(double value, double binSize) {
+    return ceil((value + 0.5) / binSize) * binSize;
+}
+
+// Mode calculation
+double getMode(const vector<double>& pulseHeights) {
+    map<double, int> frequencyMap;
+    for (double value : pulseHeights) {
+        frequencyMap[value]++;
+    }
+    double mode = pulseHeights[0];
+    int maxCount = 0;
+    for (const auto& entry : frequencyMap) {
+        if (entry.second > maxCount) {
+            mode = entry.first;
+            maxCount = entry.second;
+        }
+    }
+    return mode;
+}
+
+void PlotCombinedChart(const char *fileName) {
+    // Open the ROOT file
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        cerr << "Error opening file: " << fileName << endl;
+        return;
+    }
+
+    // Access the TTree
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        cerr << "Error accessing TTree 'tree'!" << endl;
+        file->Close();
+        return;
+    }
+
+    Short_t adcVal[23][45];
+    double_t pulseH[23];
+    tree->SetBranchAddress("adcVal", adcVal);
+    tree->SetBranchAddress("pulseH", pulseH);
+
+    Long64_t nEntries = tree->GetEntries();
+
+    vector<double> pmtPulseHeights, sipmPulseHeights;
+    for (Long64_t j = 0; j < nEntries; j++) {
+        tree->GetEntry(j);
+        for (int i = 0; i < 12; i++) pmtPulseHeights.push_back(pulseH[i]);
+        for (int i = 12; i < 22; i++) sipmPulseHeights.push_back(pulseH[i]);
+    }
+
+    double maxPMT = *max_element(pmtPulseHeights.begin(), pmtPulseHeights.end());
+    double maxSiPM = *max_element(sipmPulseHeights.begin(), sipmPulseHeights.end());
+
+    // PMT and SiPM channel mappings
+    int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
+    int sipmChannelMap[10] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+
+    // Master canvas for all plots
+    TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT and SiPM Waveforms", 1600, 1200);
+    masterCanvas->Divide(4, 6); // Divide into 4 columns and 6 rows (total 24 pads)
+
+    int padIndex = 1;
+
+    // Plot PMT channels
+    for (int i = 0; i < 12; i++) {
+        masterCanvas->cd(padIndex++); // Go to the next pad
+        TGraph *graph = new TGraph();
+
+        int adcIndex = pmtChannelMap[i];
+        for (int k = 0; k < 45; k++) {
+            double time = (k + 1) * 16.0;
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        TString title = Form("PMT %d", i + 1);
+        graph->SetTitle(title);
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxPMT * 1.1);
+        graph->Draw("AL");
+    }
+
+    // Plot SiPM channels
+    for (int i = 0; i < 10; i++) {
+        masterCanvas->cd(padIndex++); // Go to the next pad
+        TGraph *graph = new TGraph();
+
+        int adcIndex = sipmChannelMap[i];
+        for (int k = 0; k < 45; k++) {
+            double time = (k + 1) * 16.0;
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        TString title = Form("SiPM %d", i + 1);
+        graph->SetTitle(title);
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxSiPM * 1.1);
+        graph->Draw("AL");
+    }
+
+    // Save the combined chart
+    masterCanvas->SaveAs("CombinedChart.png");
+    file->Close();
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cerr << "Usage: " << argv[0] << " <root_file>" << endl;
+        return 1;
+    }
+
+    const char* fileName = argv[1];
+    PlotCombinedChart(fileName);
+
+    return 0;
+}

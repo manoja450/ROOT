@@ -55,18 +55,18 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
     // Updated layout for the combined chart based on channel mapping
     // [       | SiPM20 | SiPM21 |    |    ]
     // [ SiPM16 | PMT9  | PMT3  | PMT7 | SiPM1 ]
-    // [ SiPM15 | PMT0  | PMT5  | PMT4  | PMT8 ]
-    // [ SiPM19 | PMT10 | PMT6  | PMT12 | SiPM17 ]
-    // [       | SiPM14 | PMT11 | PMT2  | SiPM13 ]
-    // [       |       | SiPM18 |       |     ]
+    // [ SiPM15 |  PMT5  | PMT4  | PMT8 ]
+    // [ SiPM19 | PMT0 | PMT6  | PMT12 | SiPM17 ]
+    // [       | PMT10 | PMT11 | PMT2  | SiPM13 ]
+    // [       |   SiPM14    | SiPM18 |       |     ]
     
     int layout[6][5] = {
         {-1,  -1,  20,  21, -1},   // Row 1 (SiPM20, SiPM21)
         {16,  9,   3,   7,  12},    // Row 2 (SiPM16, PMT9, PMT3, PMT7, SiPM1)
-        {15,  0,   5,   4,   8},   // Row 3 (SiPM15, PMT0, PMT5, PMT4, PMT8)
-        {19, 10,   6,  1,  17},   // Row 4 (SiPM19, PMT10, PMT6, PMT1, SiPM17)
-        {-1,  14,  11,   2,  13},  // Row 5 (SiPM14, PMT11, PMT2, SiPM13)
-        {-1, -1,   18,  -1, -1}     // Row 6 (SiPM18)
+        {15,  5,   4,   8,   -1},   // Row 3 (SiPM15, PMT5, PMT4, PMT8)
+        {19, 0,   6,  1,  17},   // Row 4 (SiPM19, PMT0, PMT6, PMT1, SiPM17)
+        {-1,  10,  11,   2,  13},  // Row 5 (   PMT10,PMT11, PMT2, SiPM13)
+        {-1, 14,   18,  -1, -1}     // Row 6 (SiPM14,SiPM18)
     };
 
     // Plot PMTs and SiPMs at specific positions according to the layout

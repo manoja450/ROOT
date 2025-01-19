@@ -7,45 +7,20 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
-#include <map>
 
 using namespace std;
 
-// Function to find the nearest whole number above the maximum value
 double roundUpToBin(double value, double binSize) {
     return ceil((value + 0.5) / binSize) * binSize; // Add a small offset to ensure proper rounding
 }
 
-// Function to calculate the mode of pulse heights
-double getMode(const vector<double>& pulseHeights) {
-    // Find the most frequent pulse height
-    map<double, int> frequencyMap;
-    for (double value : pulseHeights) {
-        frequencyMap[value]++;
-    }
-
-    // Find the mode (the value with the highest frequency)
-    double mode = pulseHeights[0];
-    int maxCount = 0;
-    for (const auto& entry : frequencyMap) {
-        if (entry.second > maxCount) {
-            mode = entry.first;
-            maxCount = entry.second;
-        }
-    }
-
-    return mode;
-}
-
-void PlotpmtsAndSipms(const char *fileName) {
-    // Open the ROOT file
+void PlotCombinedChartAndIndividual(const char *fileName) {
     TFile *file = TFile::Open(fileName);
     if (!file || file->IsZombie()) {
         cerr << "Error opening file: " << fileName << endl;
         return;
     }
 
-    // Access the TTree in the file
     TTree *tree = (TTree*)file->Get("tree");
     if (!tree) {
         cerr << "Error accessing TTree 'tree'!" << endl;
@@ -53,101 +28,143 @@ void PlotpmtsAndSipms(const char *fileName) {
         return;
     }
 
-    // Declare the adcVal array (23 channels, 45 samples per channel)
     Short_t adcVal[23][45];
-    tree->SetBranchAddress("adcVal", adcVal);
-
-    // Declare the pulseH array (23 channels)
     double_t pulseH[23];
+    tree->SetBranchAddress("adcVal", adcVal);
     tree->SetBranchAddress("pulseH", pulseH);
 
-    // Get the number of entries in the TTree
     Long64_t nEntries = tree->GetEntries();
 
-    // Vectors to store pulse heights for PMTs and SiPMs
-    vector<double> pmtPulseHeights;
-    vector<double> sipmPulseHeights;
-
-    // Loop through the entries to find the max pulse heights and store pulse heights
+    vector<double> pmtPulseHeights, sipmPulseHeights;
     for (Long64_t j = 0; j < nEntries; j++) {
-        tree->GetEntry(j);  // Load the entry
-        for (int i = 0; i < 12; i++) {  // PMTs (indices 0–11)
-            pmtPulseHeights.push_back(pulseH[i]);
-        }
-        for (int i = 12; i < 22; i++) {  // SiPMs (indices 12–21)
-            sipmPulseHeights.push_back(pulseH[i]);
-        }
+        tree->GetEntry(j);
+        for (int i = 0; i < 12; i++) pmtPulseHeights.push_back(pulseH[i]);
+        for (int i = 12; i < 22; i++) sipmPulseHeights.push_back(pulseH[i]);
     }
 
-    // Find the maximum pulse height for PMTs and SiPMs
     double maxPMT = *max_element(pmtPulseHeights.begin(), pmtPulseHeights.end());
     double maxSiPM = *max_element(sipmPulseHeights.begin(), sipmPulseHeights.end());
 
-    // Display the maximum pulse heights in the terminal
-    cout << "Maximum PMT Pulse Height: " << maxPMT << endl;
-    cout << "Maximum SiPM Pulse Height: " << maxSiPM << endl;
-
-    // Define the PMT channel mapping (1 to 12) to adcVal indices (0 to 11)
     int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
-
-    // Define the SiPM channel mapping (13 to 22) to adcVal indices (12 to 21)
     int sipmChannelMap[10] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 
-    // Plot each PMT channel individually
+    // Create a master canvas with sufficient pads (6 rows, 5 columns)
+    TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT and SiPM Waveforms", 3600, 3000);
+    masterCanvas->Divide(5, 6); // 5 columns and 6 rows to accommodate 23 plots
+
+    // Updated layout for the combined chart based on channel mapping
+    // [       | SiPM20 | SiPM21 |    |    ]
+    // [ SiPM16 | PMT9  | PMT3  | PMT7 | SiPM1 ]
+    // [ SiPM15 | PMT0  | PMT5  | PMT4  | PMT8 ]
+    // [ SiPM19 | PMT10 | PMT6  | PMT12 | SiPM17 ]
+    // [       | SiPM14 | PMT11 | PMT2  | SiPM13 ]
+    // [       |       | SiPM18 |       |     ]
+    
+    int layout[6][5] = {
+        {-1,  -1,  20,  21, -1},   // Row 1 (SiPM20, SiPM21)
+        {16,  9,   3,   7,  12},    // Row 2 (SiPM16, PMT9, PMT3, PMT7, SiPM1)
+        {15,  0,   5,   4,   8},   // Row 3 (SiPM15, PMT0, PMT5, PMT4, PMT8)
+        {19, 10,   6,  1,  17},   // Row 4 (SiPM19, PMT10, PMT6, PMT1, SiPM17)
+        {-1,  14,  11,   2,  13},  // Row 5 (SiPM14, PMT11, PMT2, SiPM13)
+        {-1, -1,   18,  -1, -1}     // Row 6 (SiPM18)
+    };
+
+    // Plot PMTs and SiPMs at specific positions according to the layout
+    for (int row = 0; row < 6; row++) {
+        for (int col = 0; col < 5; col++) {  // Looping within 5 columns
+            int padPosition = layout[row][col];
+            if (padPosition >= 0) {
+                masterCanvas->cd(row * 5 + col + 1); // Correct positioning for the 6x5 grid
+                TGraph *graph = new TGraph();
+
+                int adcIndex = -1;
+                if (padPosition < 12) {
+                    adcIndex = pmtChannelMap[padPosition];  // Correct PMT mapping
+                }
+                else {
+                    adcIndex = sipmChannelMap[padPosition - 12];  // Correct SiPM mapping
+                }
+
+                for (int k = 0; k < 45; k++) {
+                    double time = (k + 1) * 16.0;
+                    if (time > 720) break;
+                    double adcValue = adcVal[adcIndex][k];
+                    graph->SetPoint(k, time, adcValue);
+                }
+
+                TString title;
+                if (padPosition < 12) {
+                    title = Form("PMT %d", padPosition + 1);
+                    graph->SetMaximum(maxPMT * 1.1);
+                } else {
+                    title = Form("SiPM %d", padPosition - 11);  // Correct index for SiPM (1–10)
+                    graph->SetMaximum(maxSiPM * 1.1);
+                }
+                graph->SetTitle(title);
+                graph->GetXaxis()->SetTitle("Time (ns)");
+                graph->GetYaxis()->SetTitle("ADC Value");
+                graph->SetMinimum(0);
+                graph->GetXaxis()->SetRangeUser(0, 720);
+
+                graph->Draw("AL");
+            }
+        }
+    }
+
+    // Save the combined chart
+    TString combinedChartFileName = Form("CombinedChart_SpecificLayout_%s.png", fileName);
+    masterCanvas->SaveAs(combinedChartFileName);
+    cout << "Combined chart saved as " << combinedChartFileName << endl;
+
+    // Save individual PMT and SiPM plots
     for (int i = 0; i < 12; i++) {
-        TCanvas *canvas = new TCanvas(Form("PMT%d_canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
+        TString individualPMTFileName = Form("PMT%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("PMT%d_Canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
-        TString title = Form("PMT %d Waveform", i + 1);
         int adcIndex = pmtChannelMap[i];
-
         for (int k = 0; k < 45; k++) {
-            double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
+            double time = (k + 1) * 16.0;
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
 
-        graph->SetTitle(title);
+        graph->SetTitle(Form("PMT %d", i + 1));
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
-        graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxPMT * 1.05); // Set maximum Y-axis value to 5% above the maximum PMT pulse height
-        graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxPMT * 1.1);
+        graph->GetXaxis()->SetRangeUser(0, 720);
 
         graph->Draw("AL");
-        canvas->SaveAs(Form("/root/gears/waveform720ns/PMT%d_%s.png", i + 1, fileName));  // Save plot to specified directory
-        delete graph;
-        delete canvas;
+        individualCanvas->SaveAs(individualPMTFileName);
+        delete individualCanvas;
     }
 
-    // Plot each SiPM channel individually
     for (int i = 0; i < 10; i++) {
-        TCanvas *canvas = new TCanvas(Form("SiPM%d_canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
+        TString individualSiPMFileName = Form("SiPM%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("SiPM%d_Canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
-        TString title = Form("SiPM %d Waveform", i + 1);
         int adcIndex = sipmChannelMap[i];
-
         for (int k = 0; k < 45; k++) {
-            double time = (k + 1) * 16.0;  // Time in nanoseconds (1st sample at 16 ns)
+            double time = (k + 1) * 16.0;
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
 
-        graph->SetTitle(title);
+        graph->SetTitle(Form("SiPM %d", i + 1));
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
-        graph->SetMinimum(0); // Set minimum Y-axis value to zero
-        graph->SetMaximum(maxSiPM * 1.05); // Set maximum Y-axis value to 5% above the maximum SiPM pulse height
-        graph->GetXaxis()->SetRangeUser(0, 720); // Ensure x-axis ends exactly at 720 ns
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxSiPM * 1.1);
+        graph->GetXaxis()->SetRangeUser(0, 720);
 
         graph->Draw("AL");
-        canvas->SaveAs(Form("/root/gears/waveform720ns/SiPM%d_%s.png", i + 1, fileName));  // Save plot to specified directory
-        delete graph;
-        delete canvas;
+        individualCanvas->SaveAs(individualSiPMFileName);
+        delete individualCanvas;
     }
 
-    // Close the file
     file->Close();
 }
 
@@ -158,7 +175,8 @@ int main(int argc, char* argv[]) {
     }
 
     const char* fileName = argv[1];  // Get the file name from the command-line argument
-    PlotpmtsAndSipms(fileName);
+    PlotCombinedChartAndIndividual(fileName);
 
     return 0;
 }
+

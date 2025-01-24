@@ -1,4 +1,5 @@
-//This code give the plots of waveforms and also creates a combined canvas according to the physical location of the PMTS/SiPMs.
+//This code gives the plots of waveforms and creates a combined canvas according to the physical location of the PMTS/SiPMs.
+//( EventID is not specified, so it gives a plot of the first event)
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>

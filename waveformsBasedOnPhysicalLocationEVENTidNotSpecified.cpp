@@ -1,0 +1,197 @@
+//This code gives the plots of waveforms and creates a combined canvas according to the physical location of the PMTS/SiPMs.
+//( EventID is not specified, so it gives a plot of the first event)
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TGraph.h>
+#include <TCanvas.h>
+#include <TAxis.h>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include "TLatex.h"
+
+
+using namespace std;
+
+double roundUpToBin(double value, double binSize) {
+    return ceil((value + 0.5) / binSize) * binSize; // Add a small offset to ensure proper rounding
+}
+
+void PlotCombinedChartAndIndividual(const char *fileName) {
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        cerr << "Error opening file: " << fileName << endl;
+        return;
+    }
+
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        cerr << "Error accessing TTree 'tree'!" << endl;
+        file->Close();
+        return;
+    }
+
+    Short_t adcVal[23][45];
+    double_t pulseH[23];
+    tree->SetBranchAddress("adcVal", adcVal);
+    tree->SetBranchAddress("pulseH", pulseH);
+
+    Long64_t nEntries = tree->GetEntries();
+
+    vector<double> pmtPulseHeights, sipmPulseHeights;
+    for (Long64_t j = 0; j < nEntries; j++) {
+        tree->GetEntry(j);
+        for (int i = 0; i < 12; i++) pmtPulseHeights.push_back(pulseH[i]);
+        for (int i = 12; i < 22; i++) sipmPulseHeights.push_back(pulseH[i]);
+    }
+
+    double maxPMT = *max_element(pmtPulseHeights.begin(), pmtPulseHeights.end());
+    double maxSiPM = *max_element(sipmPulseHeights.begin(), sipmPulseHeights.end());
+
+    int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
+    int sipmChannelMap[10] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+
+    // Create a master canvas with sufficient pads (6 rows, 5 columns)
+    TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT and SiPM Waveforms", 3600, 3000);
+    masterCanvas->Divide(5, 6); // 5 columns and 6 rows to accommodate 23 plots
+
+    // Updated layout for the combined chart based on channel mapping
+    // [       | SiPM20 | SiPM21 |    |    ]
+    // [ SiPM16 | PMT9  | PMT3  | PMT7 | SiPM1 ]
+    // [ SiPM15 |  PMT5  | PMT4  | PMT8 ]
+    // [ SiPM19 | PMT0 | PMT6  | PMT12 | SiPM17 ]
+    // [       | PMT10 | PMT11 | PMT2  | SiPM13 ]
+    // [       |   SiPM14    | SiPM18 |       |     ]
+    
+    int layout[6][5] = {
+        {-1,  -1,  20,  21, -1},   // Row 1 (SiPM20, SiPM21)
+        {16,  9,   3,   7,  12},    // Row 2 (SiPM16, PMT9, PMT3, PMT7, SiPM1)
+        {15,  5,   4,   8,   -1},   // Row 3 (SiPM15, PMT5, PMT4, PMT8)
+        {19, 0,   6,  1,  17},   // Row 4 (SiPM19, PMT0, PMT6, PMT1, SiPM17)
+        {-1,  10,  11,   2,  13},  // Row 5 (   PMT10,PMT11, PMT2, SiPM13)
+        {-1, 14,   18,  -1, -1}     // Row 6 (SiPM14,SiPM18)
+    };
+
+// Create a large font textbox on the master canvas
+masterCanvas->cd(0); // Select the canvas itself (outside the pads)
+TLatex *textbox = new TLatex();
+textbox->SetTextSize(0.02); // Set text size
+textbox->SetTextAlign(13);  // Align bottom-left
+textbox->SetNDC(true);      // Use normalized device coordinates
+// Draw the first line
+textbox->DrawLatex(0.01, 0.10, "X axis: ADC Values");
+// Draw the second line
+textbox->DrawLatex(0.01, 0.08, "Y axis: Time (0-720) ns");
+
+    // Plot PMTs and SiPMs at specific positions according to the layout
+    for (int row = 0; row < 6; row++) {
+        for (int col = 0; col < 5; col++) {  // Looping within 5 columns
+            int padPosition = layout[row][col];
+            if (padPosition >= 0) {
+                masterCanvas->cd(row * 5 + col + 1); // Correct positioning for the 6x5 grid
+                TGraph *graph = new TGraph();
+
+                int adcIndex = -1;
+                if (padPosition < 12) {
+                    adcIndex = pmtChannelMap[padPosition];  // Correct PMT mapping
+                }
+                else {
+                    adcIndex = sipmChannelMap[padPosition - 12];  // Correct SiPM mapping
+                }
+
+                for (int k = 0; k < 45; k++) {
+                    double time = (k + 1) * 16.0;
+                    if (time > 720) break;
+                    double adcValue = adcVal[adcIndex][k];
+                    graph->SetPoint(k, time, adcValue);
+                }
+
+                TString title;
+                if (padPosition < 12) {
+                    title = Form("PMT %d", padPosition + 1);
+                    graph->SetMaximum(maxPMT * 1.1);
+                } else {
+                    title = Form("SiPM %d", padPosition - 11);  // Correct index for SiPM (1–10)
+                    graph->SetMaximum(maxSiPM * 1.1);
+                }
+                graph->SetTitle(title);
+                graph->GetXaxis()->SetTitle("Time (ns)");
+                graph->GetYaxis()->SetTitle("ADC Value");
+                graph->SetMinimum(0);
+                graph->GetXaxis()->SetRangeUser(0, 720);
+
+                graph->Draw("AL");
+            }
+        }
+    }
+
+    // Save the combined chart
+    TString combinedChartFileName = Form("/root/gears/new/CombinedChart_SpecificLayout_%s.png", fileName);
+    masterCanvas->SaveAs(combinedChartFileName);
+    cout << "Combined chart saved as " << combinedChartFileName << endl;
+
+    // Save individual PMT and SiPM plots
+    for (int i = 0; i < 12; i++) {
+        TString individualPMTFileName = Form("/root/gears/new/PMT%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("/root/gears/new/PMT%d_Canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
+        TGraph *graph = new TGraph();
+
+        int adcIndex = pmtChannelMap[i];
+        for (int k = 0; k < 45; k++) {
+            double time = (k + 1) * 16.0;
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        graph->SetTitle(Form("PMT %d", i + 1));
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxPMT * 1.1);
+        graph->GetXaxis()->SetRangeUser(0, 720);
+
+        graph->Draw("AL");
+        individualCanvas->SaveAs(individualPMTFileName);
+        delete individualCanvas;
+    }
+
+    for (int i = 0; i < 10; i++) {
+        TString individualSiPMFileName = Form("/root/gears/new/SiPM%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("/root/gears/new/SiPM%d_Canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
+        TGraph *graph = new TGraph();
+
+        int adcIndex = sipmChannelMap[i];
+        for (int k = 0; k < 45; k++) {
+            double time = (k + 1) * 16.0;
+            double adcValue = adcVal[adcIndex][k];
+            graph->SetPoint(k, time, adcValue);
+        }
+
+        graph->SetTitle(Form("SiPM %d", i + 1));
+        graph->GetXaxis()->SetTitle("Time (ns)");
+        graph->GetYaxis()->SetTitle("ADC Value");
+        graph->SetMinimum(0);
+        graph->SetMaximum(maxSiPM * 1.1);
+        graph->GetXaxis()->SetRangeUser(0, 720);
+
+        graph->Draw("AL");
+        individualCanvas->SaveAs(individualSiPMFileName);
+        delete individualCanvas;
+    }
+
+    file->Close();
+}
+
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cerr << "Usage: " << argv[0] << " <root_file>" << endl;
+        return 1;
+    }
+
+    const char* fileName = argv[1];  // Get the file name from the command-line argument
+    PlotCombinedChartAndIndividual(fileName);
+
+    return 0;
+}

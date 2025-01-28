@@ -9,6 +9,8 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include "TLatex.h"
+
 
 using namespace std;
 
@@ -71,6 +73,17 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
         {-1, 14,   18,  -1, -1}     // Row 6 (SiPM14,SiPM18)
     };
 
+// Create a large font textbox on the master canvas
+masterCanvas->cd(0); // Select the canvas itself (outside the pads)
+TLatex *textbox = new TLatex();
+textbox->SetTextSize(0.02); // Set text size
+textbox->SetTextAlign(13);  // Align bottom-left
+textbox->SetNDC(true);      // Use normalized device coordinates
+// Draw the first line
+textbox->DrawLatex(0.01, 0.10, "X axis: ADC Values");
+// Draw the second line
+textbox->DrawLatex(0.01, 0.08, "Y axis: Time (0-720) ns");
+
     // Plot PMTs and SiPMs at specific positions according to the layout
     for (int row = 0; row < 6; row++) {
         for (int col = 0; col < 5; col++) {  // Looping within 5 columns
@@ -114,14 +127,14 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
     }
 
     // Save the combined chart
-    TString combinedChartFileName = Form("CombinedChart_SpecificLayout_%s.png", fileName);
+    TString combinedChartFileName = Form("/root/gears/new/CombinedChart_SpecificLayout_%s.png", fileName);
     masterCanvas->SaveAs(combinedChartFileName);
     cout << "Combined chart saved as " << combinedChartFileName << endl;
 
     // Save individual PMT and SiPM plots
     for (int i = 0; i < 12; i++) {
-        TString individualPMTFileName = Form("PMT%d_%s.png", i + 1, fileName);
-        TCanvas *individualCanvas = new TCanvas(Form("PMT%d_Canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
+        TString individualPMTFileName = Form("/root/gears/new/PMT%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("/root/gears/new/PMT%d_Canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
         int adcIndex = pmtChannelMap[i];
@@ -144,8 +157,8 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
     }
 
     for (int i = 0; i < 10; i++) {
-        TString individualSiPMFileName = Form("SiPM%d_%s.png", i + 1, fileName);
-        TCanvas *individualCanvas = new TCanvas(Form("SiPM%d_Canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
+        TString individualSiPMFileName = Form("/root/gears/new/SiPM%d_%s.png", i + 1, fileName);
+        TCanvas *individualCanvas = new TCanvas(Form("/root/gears/new/SiPM%d_Canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
         int adcIndex = sipmChannelMap[i];
@@ -169,6 +182,7 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
 
     file->Close();
 }
+
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {

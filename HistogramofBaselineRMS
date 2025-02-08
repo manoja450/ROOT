@@ -4,6 +4,7 @@
 #include <TH1.h>
 #include <TString.h>
 #include <iostream>
+#include "TStyle.h"
 
 void HistBaselineRMS(const char* filename) {
     // Open the ROOT file
@@ -56,9 +57,9 @@ void HistBaselineRMS(const char* filename) {
             // Construct the draw command: baselineRMS[ch] is plotted with 100 bins in the range [0, 10]
             TString drawCmd;
             if (isPMT) {
-                drawCmd = TString::Format("baselineRMS[%d] >> %s(100, 0, 10)", pmtChannelMap[ch], histName.Data());
+                drawCmd = TString::Format("baselineRMS[%d] >> %s(100, 0, 5)", pmtChannelMap[ch], histName.Data());
             } else if (isSiPM) {
-                drawCmd = TString::Format("baselineRMS[%d] >> %s(100, 0, 10)", sipmChannelMap[ch - 12], histName.Data());
+                drawCmd = TString::Format("baselineRMS[%d] >> %s(100, 0, 5)", sipmChannelMap[ch - 12], histName.Data());
             }
 
             // Draw the histogram for the current channel
@@ -75,9 +76,11 @@ void HistBaselineRMS(const char* filename) {
                             break;
                         }
                     }
-                    hist->SetTitle(TString::Format("PMT %d Baseline RMS", pmtIndex));
+                    // Set large font size for title
+                    gStyle->SetTitleFontSize(0.11);  // You can adjust this size to fit your needs
+                    hist->SetTitle(TString::Format("PMT %d ", pmtIndex));
                 } else if (isSiPM) {
-                    hist->SetTitle(TString::Format("SiPM %d Baseline RMS", sipmChannelMap[ch - 12] - 11)); // SiPM number starts from 1
+                    hist->SetTitle(TString::Format("SiPM %d ", sipmChannelMap[ch - 12] - 11)); // SiPM number starts from 1
                 }
                 hist->GetXaxis()->SetTitle("Baseline RMS"); // Label the X-axis
                 hist->GetYaxis()->SetTitle("Counts");       // Label the Y-axis
@@ -109,3 +112,6 @@ int main(int argc, char** argv) {
     HistBaselineRMS(filename); // Call the function to plot histograms
     return 0;
 }
+
+
+

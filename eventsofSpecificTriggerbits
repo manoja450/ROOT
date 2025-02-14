@@ -1,0 +1,60 @@
+//It helps to see the events which satisfies triggerBit==? creteria. Events satisfying certain trigger types. 
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TGraph.h>
+#include <TCanvas.h>
+#include <TLatex.h>
+#include <TAxis.h>
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+// Function prototype
+void PlotCombinedChartAndIndividual(const char *fileName);
+
+int main() {
+    PlotCombinedChartAndIndividual("run15731_processed_v5.root");
+    return 0;
+}
+
+// Function definition
+void PlotCombinedChartAndIndividual(const char *fileName) {
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        std::cerr << "Error opening file: " << fileName << std::endl;
+        return;
+    }
+
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        std::cerr << "Error accessing TTree 'tree'!" << std::endl;
+        file->Close();
+        return;
+    }
+
+    Short_t adcVal[23][45]; // ADC values
+    double_t pulseH[23];    // Pulse height values
+    Int_t triggerBits;      // Trigger bits
+    Int_t eventID;          // Event ID
+
+    tree->SetBranchAddress("adcVal", adcVal);
+    tree->SetBranchAddress("pulseH", pulseH);
+    tree->SetBranchAddress("triggerBits", &triggerBits);
+    tree->SetBranchAddress("eventID", &eventID);  // Bind eventID
+
+    Long64_t nEntries = tree->GetEntries();
+    Long64_t maxEntries = std::min(nEntries, (Long64_t)1000); // Limit to 1000 entries
+
+    std::cout << "Event IDs where triggerBits == 16:\n";
+
+    for (Long64_t j = 0; j < maxEntries; j++) {
+        tree->GetEntry(j); // Load the current entry
+
+        if (triggerBits == 16) { 
+            std::cout << "Event ID: " << eventID << std::endl;  // Print Event ID
+        }
+    }
+
+    file->Close();
+}

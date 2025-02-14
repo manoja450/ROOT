@@ -143,6 +143,8 @@ void lowlight(const char *fileName, int EventID) {
                 } else {
                     title = Form("SiPM %d", padPosition - 11);
                 }
+                graph->SetLineWidth(3);     // Set line width to 3 for thicker lines
+                graph->SetLineColor(kBlack); // Set line color to black
                 graph->SetTitle("");
                 graph->GetXaxis()->SetTitle("Time (ns)");
                 graph->GetYaxis()->SetTitle("ADC Value (mV)");
@@ -171,7 +173,7 @@ void lowlight(const char *fileName, int EventID) {
                 infoBaseline->SetTextAlign(13);
                 infoBaseline->SetNDC(true);
                 infoBaseline->SetTextColor(kRed); // Red color for Baseline Mean
-                infoBaseline->DrawLatex(0.08, 0.80, Form("BM: %.2f", baselineMean[adcIndex]));
+                infoBaseline->DrawLatex(0.08, 0.85, Form("BM: %.2f", baselineMean[adcIndex]));
             }
         }
     }
@@ -193,7 +195,8 @@ void lowlight(const char *fileName, int EventID) {
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
-
+        graph->SetLineWidth(3);     // Set line width to 3 for thicker lines
+        graph->SetLineColor(kBlack); // Set line color to black
         graph->SetTitle(Form("PMT %d", i + 1));
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value(mV)");
@@ -208,14 +211,14 @@ void lowlight(const char *fileName, int EventID) {
         infoArea->SetTextAlign(13);
         infoArea->SetNDC(true);
         infoArea->SetTextColor(kBlue); // Blue color for Area
-        infoArea->DrawLatex(0.08, 0.90, Form("Area: %.2f", area[adcIndex]));
+        infoArea->DrawLatex(0.14, 0.90, Form("Area: %.2f", area[adcIndex]));
 
         TLatex *infoBaseline = new TLatex();
         infoBaseline->SetTextSize(0.04);
         infoBaseline->SetTextAlign(13);
         infoBaseline->SetNDC(true);
         infoBaseline->SetTextColor(kRed); // Red color for Baseline Mean
-        infoBaseline->DrawLatex(0.08, 0.80, Form("BM: %.2f", baselineMean[adcIndex]));
+        infoBaseline->DrawLatex(0.14, 0.85, Form("BM: %.2f", baselineMean[adcIndex]));
 
         individualCanvas->SaveAs(individualPMTFileName);
         delete individualCanvas;
@@ -233,7 +236,8 @@ void lowlight(const char *fileName, int EventID) {
             double adcValue = adcVal[adcIndex][k];
             graph->SetPoint(k, time, adcValue);
         }
-
+        graph->SetLineWidth(3);     // Set line width to 3 for thicker lines
+        graph->SetLineColor(kBlack); // Set line color to black
         graph->SetTitle(Form("SiPM %d", i + 1));
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value");
@@ -248,14 +252,14 @@ void lowlight(const char *fileName, int EventID) {
         infoArea->SetTextAlign(13);
         infoArea->SetNDC(true);
         infoArea->SetTextColor(kBlue); // Blue color for Area
-        infoArea->DrawLatex(0.08, 0.90, Form("Area: %.2f", area[adcIndex]));
+        infoArea->DrawLatex(0.14, 0.90, Form("Area: %.2f", area[adcIndex]));
 
         TLatex *infoBaseline = new TLatex();
         infoBaseline->SetTextSize(0.04);
         infoBaseline->SetTextAlign(13);
         infoBaseline->SetNDC(true);
         infoBaseline->SetTextColor(kRed); // Red color for Baseline Mean
-        infoBaseline->DrawLatex(0.08, 0.80, Form("BM: %.2f", baselineMean[adcIndex]));
+        infoBaseline->DrawLatex(0.14, 0.85, Form("BM: %.2f", baselineMean[adcIndex]));
 
         individualCanvas->SaveAs(individualSiPMFileName);
         delete individualCanvas;

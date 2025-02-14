@@ -42,7 +42,8 @@ void processLowLightEvents(const char *fileName) {
     // Create histograms to store the area (energy) distributions for each PMT
     TH1F *histArea[12];
     for (int i = 0; i < 12; i++) {
-        histArea[i] = new TH1F(Form("PMT%d_Area", i + 1), Form("Energy Distribution for PMT %d; Area; Counts", i + 1), 150, -50, 400);
+        histArea[i] = new TH1F(Form("PMT%d_Area", i + 1), Form("Energy Distribution for PMT %d; Area; Events per 3 ADCs", i + 1), 150, -50, 400);
+        histArea[i]->SetLineColor(kRed); // Set histogram line color to red
     }
 
     // Mapping of PMT channels
@@ -76,8 +77,8 @@ void processLowLightEvents(const char *fileName) {
         canvas->Clear(); // Clear the canvas for the next histogram
 
         // Adjust histogram text size
-        histArea[i]->GetXaxis()->SetTitleSize(0.05); // Increase x-axis title size
-        histArea[i]->GetYaxis()->SetTitleSize(0.04); // Increase y-axis title size
+        histArea[i]->GetXaxis()->SetTitleSize(0.06); // Increase x-axis title size
+        histArea[i]->GetYaxis()->SetTitleSize(0.06); // Increase y-axis title size
         histArea[i]->GetXaxis()->SetLabelSize(0.04); // Increase x-axis label size
         histArea[i]->GetYaxis()->SetLabelSize(0.04); // Increase y-axis label size
 
@@ -87,7 +88,7 @@ void processLowLightEvents(const char *fileName) {
 
     // Create a master canvas for the combined plot
     TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT Energy Distributions", 3600, 3000);
-    masterCanvas->Divide(3, 4, 0.005, 0.005); // Divide canvas into 3x4 pads with minimal spacing
+    masterCanvas->Divide(3, 4, 0.01, 0.01); // Increase spacing between subplots
 
     // Define the layout of PMT channels on the canvas
     int layout[4][3] = {
@@ -105,11 +106,27 @@ void processLowLightEvents(const char *fileName) {
 
             int pmtIndex = layout[row][col]; // Get PMT index from layout
 
-            // Adjust histogram text size for the combined plot
+            // Adjust histogram title and size
+            histArea[pmtIndex]->SetTitle(Form("PMT %d ", pmtIndex + 1));
+            histArea[pmtIndex]->SetTitleSize(0.12);  // Increase title size
+
+            // Adjust histogram text size
             histArea[pmtIndex]->GetXaxis()->SetTitleSize(0.06); // Increase x-axis title size
             histArea[pmtIndex]->GetYaxis()->SetTitleSize(0.06); // Increase y-axis title size
             histArea[pmtIndex]->GetXaxis()->SetLabelSize(0.05); // Increase x-axis label size
             histArea[pmtIndex]->GetYaxis()->SetLabelSize(0.05); // Increase y-axis label size
+
+            // Ensure Y-axis label is visible
+            histArea[pmtIndex]->GetYaxis()->SetTitle("Events per 3 ADCs");
+
+            // Ensure X-axis label is visible
+            histArea[pmtIndex]->GetXaxis()->SetTitle("Area");
+
+            // Adjust margins for each subplot
+            gPad->SetLeftMargin(0.15);   // Increase left margin
+            gPad->SetRightMargin(0.05); // Adjust right margin
+            gPad->SetBottomMargin(0.15); // Increase bottom margin
+            gPad->SetTopMargin(0.05);    // Adjust top margin
 
             histArea[pmtIndex]->Draw(); // Draw the histogram
         }
@@ -142,3 +159,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+

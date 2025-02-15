@@ -1,3 +1,5 @@
+//This code gives the waveform of all PMTs and create a combined canvas based on channel mapping.It also accepts eventID from terminal.
+// It displays BM  and Area on the plot.
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>
@@ -81,22 +83,13 @@ void lowlight(const char *fileName, int EventID) {
 
     // Create a master canvas for the combined plot
     TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT Waveforms", 3600, 3000);
-    masterCanvas->Divide(3, 4, 0.005, 0.005); // Divide canvas into 3x4 pads with minimal spacing
+    masterCanvas->Divide(3, 4, 0.007, 0.009); // Divide canvas into 3x4 pads with minimal spacing
 
     // Adjust margins to create space in the bottom-left corner
     masterCanvas->SetLeftMargin(0.10);  // Increase left margin
     masterCanvas->SetRightMargin(0.05);
     masterCanvas->SetTopMargin(0.05);
     masterCanvas->SetBottomMargin(0.10); // Increase bottom margin
-
-    // Add global labels to the main canvas (not on any pad)
-   // masterCanvas->cd(); // Switch to the main canvas area
-   // TLatex *textbox = new TLatex();
-    //textbox->SetTextSize(0.02);
-   // textbox->SetTextAlign(13);
-  //  textbox->SetNDC(true);
-   // textbox->DrawLatex(0.01, 0.96, "X axis: Time (0-720) ns"); // Position at the top-left
-   // textbox->DrawLatex(0.01, 0.94, "Y axis: ADC values(mV)"); // Position below the first line
 
     // Loop through the layout to create individual PMT plots
     for (int row = 0; row < 4; row++) {
@@ -105,10 +98,10 @@ void lowlight(const char *fileName, int EventID) {
             masterCanvas->cd(padPosition); // Switch to the specific pad
 
             // Reduce margins for individual pads
-            gPad->SetLeftMargin(0.10);  // Increase left margin for individual pads
+            gPad->SetLeftMargin(0.15);  // Increase left margin for individual pads
             gPad->SetRightMargin(0.05);
             gPad->SetTopMargin(0.05);
-            gPad->SetBottomMargin(0.10); // Increase bottom margin for individual pads
+            gPad->SetBottomMargin(0.15); // Increase bottom margin for individual pads
 
             // Get the PMT channel index from the layout
             int pmtIndex = layout[row][col];
@@ -132,6 +125,15 @@ void lowlight(const char *fileName, int EventID) {
             graph->SetTitle("");
             graph->GetXaxis()->SetTitle("Time (ns)");
             graph->GetYaxis()->SetTitle("ADC Value (mV)");
+
+            // Set the axis title sizes
+            graph->GetXaxis()->SetTitleSize(0.07); // Set x-axis title size
+            graph->GetYaxis()->SetTitleSize(0.07); // Set y-axis title size
+
+            // Set the axis title offsets
+            graph->GetXaxis()->SetTitleOffset(1.2); // Increase x-axis title offset
+            graph->GetYaxis()->SetTitleOffset(1.0); // Set y-axis title offset
+
             graph->SetMinimum(170);   // Set y-axis starting value
             graph->SetMaximum(maxADC); // Set y-axis maximum based on max ADC value
             graph->GetXaxis()->SetRangeUser(0, 720);
@@ -139,7 +141,7 @@ void lowlight(const char *fileName, int EventID) {
 
             // Add the title to the plot
             TLatex *latexTitle = new TLatex();
-            latexTitle->SetTextSize(0.10);
+            latexTitle->SetTextSize(0.12);
             latexTitle->SetTextAlign(22);
             latexTitle->SetNDC(true);
             latexTitle->DrawLatex(0.5, 0.94, title);
@@ -182,6 +184,11 @@ void lowlight(const char *fileName, int EventID) {
         graph->SetTitle(Form("PMT %d", i + 1));
         graph->GetXaxis()->SetTitle("Time (ns)");
         graph->GetYaxis()->SetTitle("ADC Value(mV)");
+
+        // Set the axis title sizes for individual plots
+        graph->GetXaxis()->SetTitleSize(0.04); // Set x-axis title size
+        graph->GetYaxis()->SetTitleSize(0.04); // Set y-axis title size
+
         graph->SetMinimum(170); // y axis starting for PMTS
         graph->SetMaximum(maxADC); // Set y-axis maximum based on max ADC value
         graph->GetXaxis()->SetRangeUser(0, 720);

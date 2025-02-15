@@ -1,3 +1,4 @@
+//This code gives the histogram of lowlight events.I.E which satifies trigger creteria triggerBits==16. 
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>
@@ -6,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include "TLatex.h"
 
 using namespace std;
 
@@ -42,7 +44,7 @@ void processLowLightEvents(const char *fileName) {
     // Create histograms to store the area (energy) distributions for each PMT
     TH1F *histArea[12];
     for (int i = 0; i < 12; i++) {
-        histArea[i] = new TH1F(Form("PMT%d_Area", i + 1), Form("Energy Distribution for PMT %d; Area; Events per 3 ADCs", i + 1), 150, -50, 400);
+        histArea[i] = new TH1F(Form("PMT%d_Area", i + 1), Form("PMT %d; ADC Counts; Events per 3 ADCs", i + 1), 150, -50, 400);
         histArea[i]->SetLineColor(kRed); // Set histogram line color to red
     }
 
@@ -107,10 +109,7 @@ void processLowLightEvents(const char *fileName) {
             int pmtIndex = layout[row][col]; // Get PMT index from layout
 
             // Adjust histogram title and size
-            histArea[pmtIndex]->SetTitle(Form("PMT %d ", pmtIndex + 1));
-            histArea[pmtIndex]->SetTitleSize(0.12);  // Increase title size
-
-            // Adjust histogram text size
+            histArea[pmtIndex]->SetTitle(""); // Clear default title
             histArea[pmtIndex]->GetXaxis()->SetTitleSize(0.06); // Increase x-axis title size
             histArea[pmtIndex]->GetYaxis()->SetTitleSize(0.06); // Increase y-axis title size
             histArea[pmtIndex]->GetXaxis()->SetLabelSize(0.05); // Increase x-axis label size
@@ -120,15 +119,23 @@ void processLowLightEvents(const char *fileName) {
             histArea[pmtIndex]->GetYaxis()->SetTitle("Events per 3 ADCs");
 
             // Ensure X-axis label is visible
-            histArea[pmtIndex]->GetXaxis()->SetTitle("Area");
+            histArea[pmtIndex]->GetXaxis()->SetTitle("ADC Counts");
 
             // Adjust margins for each subplot
             gPad->SetLeftMargin(0.15);   // Increase left margin
             gPad->SetRightMargin(0.05); // Adjust right margin
             gPad->SetBottomMargin(0.15); // Increase bottom margin
-            gPad->SetTopMargin(0.05);    // Adjust top margin
+            gPad->SetTopMargin(0.15);    // Increase top margin to accommodate larger title
 
-            histArea[pmtIndex]->Draw(); // Draw the histogram
+            // Draw the histogram
+            histArea[pmtIndex]->Draw();
+
+            // Add custom title using TLatex
+            TLatex *title = new TLatex();
+            title->SetTextSize(0.12); // Set title size
+            title->SetTextAlign(22);  // Center align
+            title->SetNDC(true);      // Use normalized coordinates
+            title->DrawLatex(0.5, 0.92, Form("PMT %d", pmtIndex + 1)); // Draw title
         }
     }
 

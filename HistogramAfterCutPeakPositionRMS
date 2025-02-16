@@ -1,0 +1,70 @@
+#include <TFile.h>
+#include <TTree.h>
+#include <TH1D.h>
+#include <TCanvas.h>
+#include <TGraph.h>
+#include <iostream>
+
+void plot_peakPosition_rms_curve() {
+    // Open the ROOT file
+    TFile *file = TFile::Open("GoodEvents_1616.root");
+
+    // Check if the file was successfully opened
+    if (!file || file->IsZombie()) {
+        std::cerr << "Error opening file!" << std::endl;
+        return;
+    }
+
+    // Access the TTree
+    TTree *tree = (TTree*)file->Get("tree");
+
+    // Check if the tree exists
+    if (!tree) {
+        std::cerr << "Error accessing tree!" << std::endl;
+        return;
+    }
+
+    // Declare the variable for peakPosition_rms
+    Double_t peakPosition_rms;
+
+    // Set the branch address to point to the peakPosition_rms variable
+    tree->SetBranchAddress("peakPosition_rms", &peakPosition_rms);
+
+    // Create a histogram for the data
+    TH1D *hist = new TH1D("hist", "Peak Position RMS", 100, 0, 3);  // Adjust bins and range if needed
+
+    // Fill the histogram with data from the TTree
+    Long64_t nEntries = tree->GetEntries();
+    for (Long64_t i = 0; i < nEntries; i++) {
+        tree->GetEntry(i);  // Get the entry
+        if (peakPosition_rms != 0) {  // Exclude zero if necessary
+            hist->Fill(peakPosition_rms); 
+        }
+    }
+
+    // Create a TGraph for the curve
+    TGraph *graph = new TGraph(hist->GetNbinsX());
+
+    for (int i = 1; i <= hist->GetNbinsX(); i++) {
+        graph->SetPoint(i - 1, hist->GetBinCenter(i), hist->GetBinContent(i));
+    }
+
+    // Create a canvas to display the plot
+    TCanvas *canvas = new TCanvas("canvas", "Peak Position RMS", 800, 600);
+    graph->SetTitle("Peak Position RMS Curve;Value;Frequency");
+    graph->SetLineColor(kRed);
+    graph->Draw("ALP");  // "ALP" draws the points and connects them with a line
+
+    // Save the canvas as a PNG image
+    canvas->SaveAs("peakPosition_rms_curve.png");
+
+    // Clean up
+    delete canvas;
+    delete hist;
+    delete graph;
+}
+
+int main() {
+    plot_peakPosition_rms_curve(); // Call the function to generate the plot
+    return 0;
+}

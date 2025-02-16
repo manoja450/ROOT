@@ -1,4 +1,4 @@
-#This code gives the Histogram of baseline RMS of all channels. Also, it creates the combined chart of all channels based on the physical location of the detector.
+//This code gives the Histogram of baseline RMS of all channels. Also, it creates the combined chart of all channels based on the physical location of the detector.
 #include <TFile.h>
 #include <TTree.h>
 #include <TCanvas.h>
@@ -42,7 +42,7 @@ void HistBaselineRMS(const char* filename) {
         {-1,  14,  18,  -1, -1}    // Row 6 (SiPM14, SiPM18)
     };
 
-    / Create a large font textbox on the master canvas
+    // Create a large font textbox on the master canvas
     masterCanvas->cd(0); // Select the canvas itself (outside the pads)
     TLatex *textbox = new TLatex(); // Create a TLatex object for drawing text
     textbox->SetTextSize(0.02); // Set text size

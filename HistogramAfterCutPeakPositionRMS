@@ -1,17 +1,19 @@
+//This code gives the histogram of peakPosition_rms of the data after the applied cut.The data after cut applied in store in a new root file, which contains additional branch  peakPosition_rms.
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
 #include <TCanvas.h>
-#include <TGraph.h>
+#include <TStyle.h>
 #include <iostream>
 
-void plot_peakPosition_rms_curve() {
+
+void plot_peakPosition_rms_curve(const char* fileName) {
     // Open the ROOT file
-    TFile *file = TFile::Open("GoodEvents_1616.root");
+    TFile *file = TFile::Open(fileName);
 
     // Check if the file was successfully opened
     if (!file || file->IsZombie()) {
-        std::cerr << "Error opening file!" << std::endl;
+        std::cerr << "Error opening file: " << fileName << std::endl;
         return;
     }
 
@@ -30,8 +32,12 @@ void plot_peakPosition_rms_curve() {
     // Set the branch address to point to the peakPosition_rms variable
     tree->SetBranchAddress("peakPosition_rms", &peakPosition_rms);
 
-    // Create a histogram for the data
-    TH1D *hist = new TH1D("hist", "Peak Position RMS", 100, 0, 3);  // Adjust bins and range if needed
+    // Create a histogram for the data with fixed binning (0 to 10)
+    TH1D *hist = new TH1D("hist", "Peak Position r.m.s.;Value;Frequency", 100, 0, 10);  // Fixed binning
+
+    // Customize axis titles
+    hist->GetXaxis()->SetTitle("Peak Position RMS ");  // Custom x-axis title
+    hist->GetYaxis()->SetTitle("Counts");         // Custom y-axis title
 
     // Fill the histogram with data from the TTree
     Long64_t nEntries = tree->GetEntries();
@@ -42,29 +48,37 @@ void plot_peakPosition_rms_curve() {
         }
     }
 
-    // Create a TGraph for the curve
-    TGraph *graph = new TGraph(hist->GetNbinsX());
-
-    for (int i = 1; i <= hist->GetNbinsX(); i++) {
-        graph->SetPoint(i - 1, hist->GetBinCenter(i), hist->GetBinContent(i));
-    }
-
     // Create a canvas to display the plot
-    TCanvas *canvas = new TCanvas("canvas", "Peak Position RMS", 800, 600);
-    graph->SetTitle("Peak Position RMS Curve;Value;Frequency");
-    graph->SetLineColor(kRed);
-    graph->Draw("ALP");  // "ALP" draws the points and connects them with a line
+    TCanvas *canvas = new TCanvas("canvas", "Peak Position r.m.s", 800, 600);
+
+    // Enable statistics box with default ROOT style
+    hist->SetStats(1);  // Enable statistics box
+    gStyle->SetOptStat(1111);  // Show nEntries, Mean, and Std Dev
+
+    // Draw the histogram with fixed x-axis range (0–10)
+    hist->GetXaxis()->SetRangeUser(0, 10);  // Fixed x-axis range
+    hist->Draw();
 
     // Save the canvas as a PNG image
-    canvas->SaveAs("peakPosition_rms_curve.png");
+    canvas->SaveAs("peakPosition_rms_histogram.png");
 
     // Clean up
     delete canvas;
     delete hist;
-    delete graph;
 }
 
-int main() {
-    plot_peakPosition_rms_curve(); // Call the function to generate the plot
+int main(int argc, char* argv[]) {
+    // Check if the file name is provided as a command-line argument
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <input_file.root>" << std::endl;
+        return 1;
+    }
+
+    // Get the file name from the command-line argument
+    const char* fileName = argv[1];
+
+    // Call the function to generate the plot
+    plot_peakPosition_rms_curve(fileName);
+
     return 0;
 }

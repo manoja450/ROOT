@@ -1,3 +1,5 @@
+//This code is designed to select data for Michel electron analysis. It applies a series of cuts to remove afterpulsing events. 
+//After applying the cut it stores the good data in a new root file, with an additional branch for peakPosition_rms.
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>
@@ -53,7 +55,7 @@ void processEvents(const char *fileName) {
     tree->SetBranchAddress("baselineRMS", baselineRMS);
     tree->SetBranchAddress("triggerBits", &triggerBits);
 
-    // 1. CALIBRATION (trigger-selected events only)
+    // 1. CALIBRATION PHASE
     TH1F *histArea[12];
     int pmtChannelMap[12] = {0,10,7,2,6,3,8,9,11,4,5,1};
     
@@ -90,7 +92,17 @@ void processEvents(const char *fileName) {
         delete fitFunc;
     }
 
-    // 2. EVENT SELECTION (all events)
+    // Print calibration results
+    cout << "\nCALIBRATION RESULTS (1PE peak positions):\n";
+    cout << "PMT#  HardwareCh  mu1 [ADC]\n";
+    cout << "---------------------------\n";
+    for (int i=0; i<12; i++) {
+        printf("PMT%02d     %2d       %6.2f\n", 
+              i+1, pmtChannelMap[i], mu1[i]);
+    }
+    cout << endl;
+
+    // 2. EVENT SELECTION
     vector<Long64_t> goodEvents, badEvents;
     vector<Double_t> goodRMS, badRMS;
 
@@ -108,8 +120,8 @@ void processEvents(const char *fileName) {
             }
         }
 
+        vector<Double_t> peakPositions;
         if (allAbove2PE) {
-            vector<Double_t> peakPositions;
             for (int pmt=0; pmt<12; pmt++) {
                 peakPositions.push_back(peakPosition[pmtChannelMap[pmt]]);
             }
@@ -129,7 +141,7 @@ void processEvents(const char *fileName) {
             }
 
             if (allPassConditionB) {
-                vector<Double_t> peakPositions;
+                peakPositions.clear();
                 for (int pmt=0; pmt<12; pmt++) {
                     peakPositions.push_back(peakPosition[pmtChannelMap[pmt]]);
                 }

@@ -85,8 +85,16 @@ void processEvents(const char *fileName) {
         Double_t histMean = histArea[i]->GetMean();
         Double_t histRMS = histArea[i]->GetRMS();
 
-        fitFunc->SetParameters(1000, histMean-histRMS, histRMS/2,
-                               1000, histMean, histRMS, 500, 500);
+        fitFunc->SetParameters(
+            1000,               // par[0]: Amplitude of the pedestal peak
+            histMean - histRMS, // par[1]: Mean of the pedestal peak
+            histRMS / 2,        // par[2]: Sigma of the pedestal peak
+            1000,               // par[3]: Amplitude of the 1PE peak
+            histMean,           // par[4]: Mean of the 1PE peak (mu1)
+            histRMS,            // par[5]: Sigma of the 1PE peak
+            500,                // par[6]: Amplitude of the 2PE peak
+            500                 // par[7]: Amplitude of the 3PE peak
+        );
         histArea[i]->Fit(fitFunc, "Q0");
         mu1[i] = fitFunc->GetParameter(4);
         delete fitFunc;
@@ -197,3 +205,7 @@ int main(int argc, char* argv[]) {
     processEvents(argv[1]);
     return 0;
 }
+       
+
+  
+   

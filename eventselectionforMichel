@@ -1,0 +1,196 @@
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TH1F.h>
+#include <TF1.h>
+#include <vector>
+#include <cmath>
+#include <unistd.h>
+
+using namespace std;
+
+// SPE fitting function
+Double_t SPEfit(Double_t *x, Double_t *par) {
+    Double_t term1 = par[0] * exp(-0.5 * pow((x[0]-par[1])/par[2], 2));
+    Double_t term2 = par[3] * exp(-0.5 * pow((x[0]-par[4])/par[5], 2));
+    Double_t term3 = par[6] * exp(-0.5 * pow((x[0]-sqrt(2)*par[4])/sqrt(2*pow(par[5],2)-pow(par[2],2)), 2));
+    Double_t term4 = par[7] * exp(-0.5 * pow((x[0]-sqrt(3)*par[4])/sqrt(3*pow(par[5],2)-2*pow(par[2],2)), 2));
+    return term1 + term2 + term3 + term4;
+}
+
+// Mean/RMS calculation
+void CalculateMeanAndRMS(const vector<Double_t> &data, Double_t &mean, Double_t &rms) {
+    mean = 0.0;
+    for (const auto &value : data) mean += value;
+    mean /= data.size();
+    
+    rms = 0.0;
+    for (const auto &value : data) rms += pow(value - mean, 2);
+    rms = sqrt(rms / data.size());
+}
+
+void processEvents(const char *fileName) {
+    // File handling
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        cerr << "Error opening file: " << fileName << endl;
+        return;
+    }
+
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        cerr << "Error accessing TTree!" << endl;
+        file->Close();
+        return;
+    }
+
+    // Variable declarations
+    Short_t adcVal[23][45];
+    Double_t area[23], pulseH[23], baselineRMS[23];
+    Int_t peakPosition[23], triggerBits;
+
+    // Branch connections
+    tree->SetBranchAddress("adcVal", adcVal);
+    tree->SetBranchAddress("area", area);
+    tree->SetBranchAddress("pulseH", pulseH);
+    tree->SetBranchAddress("peakPosition", peakPosition);
+    tree->SetBranchAddress("baselineRMS", baselineRMS);
+    tree->SetBranchAddress("triggerBits", &triggerBits);
+
+    // 1. CALIBRATION PHASE (trigger-selected events only)
+    TH1F *histArea[12];
+    int pmtChannelMap[12] = {0,10,7,2,6,3,8,9,11,4,5,1};
+    
+    // Initialize histograms
+    for (int i=0; i<12; i++) {
+        histArea[i] = new TH1F(Form("PMT%d_Area",i+1), 
+                              Form("PMT %d;ADC Counts;Events",i+1), 150, -50, 400);
+    }
+
+    // Fill histograms with low-light events (triggerBits == 16)
+    Long64_t nEntries = tree->GetEntries();
+    for (Long64_t entry=0; entry<nEntries; entry++) {
+        tree->GetEntry(entry);
+        if (triggerBits != 16) continue;  // Trigger selection
+        
+        for (int pmt=0; pmt<12; pmt++) {
+            int adcIndex = pmtChannelMap[pmt];
+            histArea[pmt]->Fill(area[adcIndex]);
+        }
+    }
+
+    // Perform SPE fits
+    Double_t mu1[12] = {0};
+    for (int i=0; i<12; i++) {
+        if (histArea[i]->GetEntries() == 0) {
+            cerr << "Empty histogram for PMT " << i+1 << endl;
+            continue;
+        }
+
+        TF1 *fitFunc = new TF1("fitFunc", SPEfit, -50, 400, 8);
+        Double_t histMean = histArea[i]->GetMean();
+        Double_t histRMS = histArea[i]->GetRMS();
+
+        fitFunc->SetParameters(1000, histMean-histRMS, histRMS/2,
+                               1000, histMean, histRMS, 500, 500);
+        histArea[i]->Fit(fitFunc, "Q0");
+        mu1[i] = fitFunc->GetParameter(4);
+        delete fitFunc;
+    }
+
+    // 2. EVENT SELECTION PHASE (all events)
+    vector<Long64_t> goodEvents, badEvents;
+    vector<Double_t> goodRMS, badRMS;
+
+    for (Long64_t entry=0; entry<nEntries; entry++) {
+        tree->GetEntry(entry);
+        bool isGood = false;
+        Double_t currentRMS;
+
+        // Condition A: All PMTs > 2PE + peak RMS < 2.5
+        bool condA = true;
+        for (int pmt=0; pmt<12; pmt++) {
+            int adcIndex = pmtChannelMap[pmt];
+            if (pulseH[adcIndex] <= 2*mu1[pmt]) {
+                condA = false;
+                break;
+            }
+        }
+
+        if (condA) {
+            vector<Double_t> peakPositions;
+            for (int pmt=0; pmt<12; pmt++) 
+                peakPositions.push_back(peakPosition[pmtChannelMap[pmt]]);
+            
+            Double_t dummyMean;
+            CalculateMeanAndRMS(peakPositions, dummyMean, currentRMS);
+            if (currentRMS < 2.5) isGood = true;
+        }
+        // Condition B: Fallback criteria
+        else {  
+            bool condB = true;
+            for (int pmt=0; pmt<12; pmt++) {
+                int adcIndex = pmtChannelMap[pmt];
+                Double_t threshold = 3*baselineRMS[adcIndex];
+                
+                if (pulseH[adcIndex] <= threshold || 
+                   (area[adcIndex]/pulseH[adcIndex]) <= 1) {
+                    condB = false;
+                    break;
+                }
+            }
+
+            if (condB) {
+                vector<Double_t> peakPositions;
+                for (int pmt=0; pmt<12; pmt++) 
+                    peakPositions.push_back(peakPosition[pmtChannelMap[pmt]]);
+                
+                Double_t dummyMean;
+                CalculateMeanAndRMS(peakPositions, dummyMean, currentRMS);
+                if (currentRMS < 2.5) isGood = true;
+            }
+        }
+
+        // Classify event
+        (isGood ? goodEvents : badEvents).push_back(entry);
+        (isGood ? goodRMS : badRMS).push_back(currentRMS);
+    }
+
+    // Save good events to a new file
+    TFile *goodFile = new TFile(Form("./GoodEvents_%d.root", getpid()), "RECREATE");
+    TTree *goodTree = tree->CloneTree(0);
+    Double_t rmsStorage;
+    goodTree->Branch("peakPosition_rms", &rmsStorage, "peakPosition_rms/D");
+    for (size_t i = 0; i < goodEvents.size(); i++) {
+        tree->GetEntry(goodEvents[i]);
+        rmsStorage = goodRMS[i];
+        goodTree->Fill();
+    }
+    goodTree->Write();
+    delete goodFile;
+
+    // Save bad events to a new file
+    TFile *badFile = new TFile(Form("./BadEvents_%d.root", getpid()), "RECREATE");
+    TTree *badTree = tree->CloneTree(0);
+    badTree->Branch("peakPosition_rms", &rmsStorage, "peakPosition_rms/D");
+    for (size_t i = 0; i < badEvents.size(); i++) {
+        tree->GetEntry(badEvents[i]);
+        rmsStorage = badRMS[i];
+        badTree->Fill();
+    }
+    badTree->Write();
+    delete badFile;
+
+    // Cleanup
+    for (int i=0; i<12; i++) delete histArea[i];
+    file->Close();
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cerr << "Usage: " << argv[0] << " <input_file.root>" << endl;
+        return 1;
+    }
+    processEvents(argv[1]);
+    return 0;
+}

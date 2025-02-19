@@ -1,0 +1,239 @@
+//This code is designed to select data for Michel electron analysis. It applies a series of cuts to remove afterpulsing events. 
+//After applying the cut it looks fro Michel electron events on PMTs(triggerBits==2) 
+// and select Michel electrons and plot the Michel electrons in p.e.
+// Also it stores good and bad events in a single root file with two different trees with additional branch of pprms.
+#include <iostream>
+#include <TFile.h>
+#include <TTree.h>
+#include <TH1F.h>
+#include <TF1.h>
+#include <TCanvas.h>
+#include <vector>
+#include <cmath>
+#include <unistd.h>
+#include <algorithm>
+#include <TStyle.h>
+
+
+using namespace std;
+
+Double_t SPEfit(Double_t *x, Double_t *par) {
+    Double_t A0 = par[0];
+    Double_t mu0 = par[1];
+    Double_t sigma0 = par[2];
+    Double_t A1 = par[3];
+    Double_t mu1 = par[4];
+    Double_t sigma1 = par[5];
+    Double_t A2 = par[6];
+    Double_t A3 = par[7];
+
+    Double_t term1 = A0 * exp(-0.5 * pow((x[0] - mu0) / sigma0, 2));
+    Double_t term2 = A1 * exp(-0.5 * pow((x[0] - mu1) / sigma1, 2));
+    Double_t term3 = A2 * exp(-0.5 * pow((x[0] - sqrt(2) * mu1) / sqrt(2 * sigma1 * sigma1 - sigma0 * sigma0), 2));
+    Double_t term4 = A3 * exp(-0.5 * pow((x[0] - sqrt(3) * mu1) / sqrt(3 * sigma1 * sigma1 - 2 * sigma0 * sigma0), 2));
+
+    return term1 + term2 + term3 + term4;
+}
+
+void CalculateMeanAndRMS(const vector<Double_t> &data, Double_t &mean, Double_t &rms) {
+    mean = 0.0;
+    for (const auto &value : data) mean += value;
+    mean /= data.size();
+    
+    rms = 0.0;
+    for (const auto &value : data) rms += pow(value - mean, 2);
+    rms = sqrt(rms / data.size());
+}
+
+void processEvents(const char *fileName) {
+    TFile *file = TFile::Open(fileName);
+    if (!file || file->IsZombie()) {
+        cerr << "Error opening file: " << fileName << endl;
+        return;
+    }
+
+    TTree *tree = (TTree*)file->Get("tree");
+    if (!tree) {
+        cerr << "Error accessing TTree!" << endl;
+        file->Close();
+        return;
+    }
+
+    Short_t adcVal[23][45];
+    Double_t area[23], pulseH[23], baselineRMS[23];
+    Int_t peakPosition[23], triggerBits;
+    Long64_t nsTime;
+
+    tree->SetBranchAddress("adcVal", adcVal);
+    tree->SetBranchAddress("area", area);
+    tree->SetBranchAddress("pulseH", pulseH);
+    tree->SetBranchAddress("peakPosition", peakPosition);
+    tree->SetBranchAddress("baselineRMS", baselineRMS);
+    tree->SetBranchAddress("triggerBits", &triggerBits);
+    tree->SetBranchAddress("nsTime", &nsTime);
+
+    // 1. CALIBRATION PHASE
+    TH1F *histArea[12];
+    int pmtChannelMap[12] = {0,10,7,2,6,3,8,9,11,4,5,1};
+    
+    for (int i=0; i<12; i++) {
+        histArea[i] = new TH1F(Form("PMT%d_Area",i+1), 
+                              Form("PMT %d;ADC Counts;Events",i+1), 150, -50, 400);
+    }
+
+    Long64_t nEntries = tree->GetEntries();
+    for (Long64_t entry=0; entry<nEntries; entry++) {
+        tree->GetEntry(entry);
+        if (triggerBits != 16) continue;
+        
+        for (int pmt=0; pmt<12; pmt++) {
+            histArea[pmt]->Fill(area[pmtChannelMap[pmt]]);
+        }
+    }
+
+    Double_t mu1[12] = {0};
+    for (int i=0; i<12; i++) {
+        if (histArea[i]->GetEntries() == 0) {
+            cerr << "Empty histogram for PMT " << i+1 << endl;
+            continue;
+        }
+
+        TF1 *fitFunc = new TF1("fitFunc", SPEfit, -50, 400, 8);
+        fitFunc->SetParameters(1000, 0, 10, 1000, 50, 10, 500, 500);
+        fitFunc->SetLineColor(kBlue);
+
+        fitFunc->SetParName(0, "A0");
+        fitFunc->SetParName(1, "#mu_{0}");
+        fitFunc->SetParName(2, "#sigma_{0}");
+        fitFunc->SetParName(3, "A1");
+        fitFunc->SetParName(4, "#mu_{1}");
+        fitFunc->SetParName(5, "#sigma_{1}");
+        fitFunc->SetParName(6, "A2");
+        fitFunc->SetParName(7, "A3");
+
+        histArea[i]->Fit("fitFunc", "R");
+        mu1[i] = fitFunc->GetParameter(4);
+        cout << "PMT " << i+1 << " (Hardware Channel " << pmtChannelMap[i] << "): mu1 = " << mu1[i] << endl;
+        delete fitFunc;
+    }
+
+    // Create output file and trees for good/bad events
+    TFile *outputFile = new TFile("processed_output.root", "RECREATE");
+    if (!outputFile || outputFile->IsZombie()) {
+        cerr << "Error creating output file!" << endl;
+        return;
+    }
+
+    TTree *goodTree = new TTree("goodTree", "Good Events");
+    TTree *badTree = new TTree("badTree", "Bad Events");
+
+    Double_t peakPositionRMSValue;
+    goodTree->Branch("adcVal", adcVal, "adcVal[23][45]/S");
+    goodTree->Branch("area", area, "area[23]/D");
+    goodTree->Branch("pulseH", pulseH, "pulseH[23]/D");
+    goodTree->Branch("peakPosition", peakPosition, "peakPosition[23]/I");
+    goodTree->Branch("baselineRMS", baselineRMS, "baselineRMS[23]/D");
+    goodTree->Branch("triggerBits", &triggerBits, "triggerBits/I");
+    goodTree->Branch("nsTime", &nsTime, "nsTime/L");
+    goodTree->Branch("peakPositionRMS", &peakPositionRMSValue, "peakPositionRMS/D");
+
+    badTree->Branch("adcVal", adcVal, "adcVal[23][45]/S");
+    badTree->Branch("area", area, "area[23]/D");
+    badTree->Branch("pulseH", pulseH, "pulseH[23]/D");
+    badTree->Branch("peakPosition", peakPosition, "peakPosition[23]/I");
+    badTree->Branch("baselineRMS", baselineRMS, "baselineRMS[23]/D");
+    badTree->Branch("triggerBits", &triggerBits, "triggerBits/I");
+    badTree->Branch("nsTime", &nsTime, "nsTime/L");
+    badTree->Branch("peakPositionRMS", &peakPositionRMSValue, "peakPositionRMS/D");
+
+    vector<Long64_t> goodEvents;
+    vector<Double_t> goodRMS;
+
+    for (Long64_t entry=0; entry<nEntries; entry++) {
+        tree->GetEntry(entry);
+        if (triggerBits != 2) continue;
+
+        vector<Double_t> peakPositions;
+        for (int pmt=0; pmt<12; pmt++) {
+            peakPositions.push_back(peakPosition[pmtChannelMap[pmt]]);
+        }
+        Double_t dummyMean, currentRMS;
+        CalculateMeanAndRMS(peakPositions, dummyMean, currentRMS);
+
+        bool allAbove2PE = true;
+        for (int pmt=0; pmt<12; pmt++) {
+            if (pulseH[pmtChannelMap[pmt]] <= 2*mu1[pmt]) {
+                allAbove2PE = false;
+                break;
+            }
+        }
+
+        bool allPassConditionB = false;
+        if (!allAbove2PE) {
+            allPassConditionB = true;
+            for (int pmt=0; pmt<12; pmt++) {
+                int ch = pmtChannelMap[pmt];
+                if (pulseH[ch] <= 3*baselineRMS[ch] || (area[ch]/pulseH[ch]) <= 1.0) {
+                    allPassConditionB = false;
+                    break;
+                }
+            }
+        }
+
+        bool isGood = ( (allAbove2PE || allPassConditionB) && (currentRMS < 2.5) );
+        peakPositionRMSValue = currentRMS;
+
+        if (isGood) {
+            goodTree->Fill();
+            goodEvents.push_back(entry);
+            goodRMS.push_back(currentRMS);
+        } else {
+            badTree->Fill();
+        }
+    }
+
+    outputFile->cd();
+    goodTree->Write();
+    badTree->Write();
+    outputFile->Close();
+
+    // 3. MICHEL ELECTRON SPECTRUM
+    TH1F *michelSpectrum = new TH1F("MichelSpectrum", 
+                                   "Michel Electron Spectrum;Photoelectrons (p.e.);Events", 
+                                   100, 0, 1000);
+
+    for (size_t i=0; i<goodEvents.size(); i++) {
+        tree->GetEntry(goodEvents[i]);
+        Double_t totalPE = 0.0;
+        for (int pmt=0; pmt<12; pmt++) {
+            totalPE += area[pmtChannelMap[pmt]] / mu1[pmt];
+        }
+        michelSpectrum->Fill(totalPE);
+    }
+
+    // 4. PLOTTING
+    TCanvas *c1 = new TCanvas("c1", "Michel Electron Spectrum", 1000, 800);
+    c1->SetGrid();
+    michelSpectrum->SetLineColor(kBlue);
+    michelSpectrum->SetLineWidth(2);
+    michelSpectrum->SetFillStyle(0);
+    michelSpectrum->Draw("HIST L");
+    gStyle->SetOptStat(1111);
+    gStyle->SetStatW(0.2);
+    gStyle->SetStatH(0.15);
+    c1->SaveAs(Form("MichelSpectrum_%d.png", getpid()));
+
+    delete c1;
+    for (int i=0; i<12; i++) delete histArea[i];
+    delete michelSpectrum;
+    file->Close();
+}
+
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cerr << "Usage: " << argv[0] << " <input_file.root>" << endl;
+        return 1;
+    }
+    processEvents(argv[1]);
+    return 0;
+}

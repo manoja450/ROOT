@@ -1,5 +1,5 @@
 //This code gives the plots of waveforms and creates a combined canvas according to the physical location of the PMTS/SiPMs.
-//( EventID is  specified, so it gives a plot of the specific event).It also creates a legend on Combined canvas . 
+//( EventID is  specified, so it gives a plot of the specific event).It also creates a legend on the Combined canvas. We can plot for multiple Events at once. It also creates a folder to save the plots for each event ID.
 // The y axis maximum limit is based on the maximum value of adcVal across that event.
 
 #include <iostream>
@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include "TLatex.h"
+#include <sys/stat.h> // For mkdir
 
 using namespace std;
 
@@ -59,8 +60,15 @@ void lowlight(const char *fileName, int EventID) {
     // Round up the maximum ADC value to the nearest 100 for better y-axis scaling
     maxADC = roundUpToBin(maxADC, 10);
 
+    // Declare PMT and SiPM channel maps
     int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
     int sipmChannelMap[10] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+
+    // Create a directory for the event
+    TString dirName = Form("Event_%d", EventID);
+    if (mkdir(dirName.Data(), 0777) == -1) { // 0777 is the permission mode
+        cerr << "Error creating directory: " << dirName << " (it may already exist)" << endl;
+    }
 
     TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT and SiPM Waveforms", 3600, 3000);
     masterCanvas->Divide(5, 6);
@@ -126,12 +134,14 @@ void lowlight(const char *fileName, int EventID) {
         }
     }
 
-    TString combinedChartFileName = Form("/root/gears/new/CombinedChart_SpecificLayout_%s_Event%d.png", fileName, EventID);
+    // Save the combined chart inside the event directory
+    TString combinedChartFileName = Form("%s/CombinedChart_SpecificLayout_%s_Event%d.png", dirName.Data(), fileName, EventID);
     masterCanvas->SaveAs(combinedChartFileName);
     cout << "Combined chart saved as " << combinedChartFileName << endl;
 
+    // Save individual PMT plots inside the event directory
     for (int i = 0; i < 12; i++) {
-        TString individualPMTFileName = Form("/root/gears/new/PMT%d_%s_Event%d.png", i + 1, fileName, EventID);
+        TString individualPMTFileName = Form("%s/PMT%d_%s_Event%d.png", dirName.Data(), i + 1, fileName, EventID);
         TCanvas *individualCanvas = new TCanvas(Form("PMT%d_Canvas", i + 1), Form("PMT %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
@@ -153,8 +163,9 @@ void lowlight(const char *fileName, int EventID) {
         delete individualCanvas;
     }
 
+    // Save individual SiPM plots inside the event directory
     for (int i = 0; i < 10; i++) {
-        TString individualSiPMFileName = Form("/root/gears/new/SiPM%d_%s_Event%d.png", i + 1, fileName, EventID);
+        TString individualSiPMFileName = Form("%s/SiPM%d_%s_Event%d.png", dirName.Data(), i + 1, fileName, EventID);
         TCanvas *individualCanvas = new TCanvas(Form("SiPM%d_Canvas", i + 1), Form("SiPM %d", i + 1), 800, 600);
         TGraph *graph = new TGraph();
 
@@ -180,14 +191,19 @@ void lowlight(const char *fileName, int EventID) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        cerr << "Usage: " << argv[0] << " <root_file> <EventID>" << endl;
+    if (argc < 3) {
+        cerr << "Usage: " << argv[0] << " <root_file> <EventID1> <EventID2> ..." << endl;
         return 1;
     }
 
-    const char* fileName = argv[1];
-    int EventID = atoi(argv[2]);
-    lowlight(fileName, EventID);
+    const char* fileName = argv[1]; // First argument is the ROOT file name
+
+    // Loop through all EventIDs provided as arguments
+    for (int i = 2; i < argc; i++) {
+        int EventID = atoi(argv[i]); // Convert argument to integer
+        cout << "Processing EventID: " << EventID << endl;
+        lowlight(fileName, EventID); // Call lowlight for each EventID
+    }
 
     return 0;
 }

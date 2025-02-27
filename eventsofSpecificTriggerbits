@@ -13,8 +13,14 @@
 // Function prototype
 void PlotCombinedChartAndIndividual(const char *fileName);
 
-int main() {
-    PlotCombinedChartAndIndividual("run15731_processed_v5.root");
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <root_filename>" << std::endl;
+        return 1;
+    }
+
+    const char* fileName = argv[1];
+    PlotCombinedChartAndIndividual(fileName);
     return 0;
 }
 
@@ -46,15 +52,16 @@ void PlotCombinedChartAndIndividual(const char *fileName) {
     Long64_t nEntries = tree->GetEntries();
     Long64_t maxEntries = std::min(nEntries, (Long64_t)1000); // Limit to 1000 entries
 
-    std::cout << "Event IDs where triggerBits == 16:\n";
+    std::cout << "Event IDs where triggerBits == 34:\n";
 
     for (Long64_t j = 0; j < maxEntries; j++) {
         tree->GetEntry(j); // Load the current entry
 
-        if (triggerBits == 16) { 
+        if (triggerBits == 34) { 
             std::cout << "Event ID: " << eventID << std::endl;  // Print Event ID
         }
     }
 
     file->Close();
 }
+

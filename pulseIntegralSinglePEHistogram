@@ -1,4 +1,4 @@
-//This code gives the histogram of lowlight events.I.E which satifies trigger creteria triggerBits==16. 
+//This code gives the histogram of AREA OF lowlight events.I.E which satifies trigger creteria triggerBits==16. 
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>

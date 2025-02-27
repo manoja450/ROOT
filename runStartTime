@@ -1,0 +1,40 @@
+//This code prints the run starttime of the specific run. And prints the starttime in human readable format.
+#include <TFile.h>
+#include <TParameter.h>
+#include <iostream>
+#include <ctime>
+
+int main(int argc, char* argv[]) {
+    // Check if the user provided a file name
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <ROOT filename>" << std::endl;
+        return 1;
+    }
+
+    // Open the ROOT file
+    TFile *f = TFile::Open(argv[1]);
+    if (!f || f->IsZombie()) {
+        std::cerr << "Error: Could not open ROOT file: " << argv[1] << std::endl;
+        return 1;
+    }
+
+    // Retrieve the 'starttime' parameter
+    auto tsstart = (TParameter<Long64_t> *) f->Get("starttime");
+    if (tsstart) {
+        Long64_t run_starttime = tsstart->GetVal();
+        std::cout << "Run Start Time (Unix Timestamp): " << run_starttime << std::endl;
+
+        // Convert to human-readable format
+        time_t rawtime = (time_t) run_starttime;
+        struct tm *timeinfo = localtime(&rawtime);
+        std::cout << "Run Start Time (Local Time): " << asctime(timeinfo);
+    } else {
+        std::cerr << "Error: 'starttime' not found in the ROOT file." << std::endl;
+    }
+
+    // Close the file
+    f->Close();
+    delete f;
+
+    return 0;
+}

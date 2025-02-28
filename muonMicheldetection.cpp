@@ -1,5 +1,5 @@
-//It will print the muon and michel elctron time difference.The program now identifies muon candidates and searches for Michel electrons within a 10 μs window.
-//The time difference between the muon and Michel electron signals is calculated and displayed.
+//The program calculates the time difference for all events but prints values only for the first 10 events.
+//It generates a histogram of the time difference distribution and saves it as an image file.
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>
@@ -65,6 +65,12 @@ void analyzeMuonDecay(const char *fileName, Long64_t maxEvents = -1) {
 
     // Threshold for muon detection (adjust as needed)
     double muonThreshold = 1000; // Example threshold in ADC counts
+
+    // Vector to store time differences
+    vector<double> timeDifferences;
+
+    // Histogram for time difference distribution
+    TH1F *timeDiffHist = new TH1F("timeDiffHist", "Time Difference (Michel - Muon); Time Difference [ns]; Counts", 100, 0, 10000);
 
     // Loop through the specified number of events
     for (Long64_t EventID = 0; EventID < maxEvents; EventID++) {
@@ -152,15 +158,26 @@ void analyzeMuonDecay(const char *fileName, Long64_t maxEvents = -1) {
             // Calculate time difference
             if (michelPeakTime != -1) {
                 double timeDifference = (nsTime + michelPeakTime) - muonAbsoluteTime;
-                cout << "Event " << EventID << ": Muon absolute time = " << muonAbsoluteTime << " ns, Michel electron absolute time = " << (nsTime + michelPeakTime) << " ns" << endl;
-                cout << "Time difference (Michel - Muon) = " << timeDifference << " ns" << endl;
-            } else {
+                timeDifferences.push_back(timeDifference); // Store time difference
+                timeDiffHist->Fill(timeDifference); // Fill histogram
+
+                // Print values for the first 10 events
+                if (EventID < 10) {
+                    cout << "Event " << EventID << ": Muon absolute time = " << muonAbsoluteTime << " ns, Michel electron absolute time = " << (nsTime + michelPeakTime) << " ns" << endl;
+                    cout << "Time difference (Michel - Muon) = " << timeDifference << " ns" << endl;
+                }
+            } else if (EventID < 10) {
                 cout << "Event " << EventID << ": Muon detected, but no Michel electron found within 10 μs window." << endl;
             }
-        } else {
+        } else if (EventID < 10) {
             cout << "Event " << EventID << ": No muon candidate found." << endl;
         }
     }
+
+    // Plot the time difference distribution
+    TCanvas *canvas = new TCanvas("canvas", "Time Difference Distribution", 800, 600);
+    timeDiffHist->Draw();
+    canvas->SaveAs("time_difference_distribution.png");
 
     file->Close();
 }

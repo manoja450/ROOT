@@ -1,4 +1,4 @@
-//This code gives the waveform of all PMTs and create a combined canvas based on channel mapping.It also accepts eventID from terminal.
+//This code gives all PMTs' waveform and creates a combined canvas based on channel mapping. It also accepts eventID from the terminal.
 // It displays BM  and Area on the plot.
 #include <iostream>
 #include <TFile.h>

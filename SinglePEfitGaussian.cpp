@@ -1,4 +1,4 @@
-//This code do Gaussianfit for low light trigger events.Which is singlepe calibration.It plots the histogram of area and fit the gaussain.
+//This code do Gaussian fit for low light trigger events. Which is a single-pe calibration. It plots the histogram of area and fits the Gaussian.
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>

@@ -1,7 +1,9 @@
-./PlotCombined /data13/coherent/data/d2o/processedData/run21666_processed_v5.root  run21667_processed_v5.root  run21668_processed_v5.root  run21669_processed_v5.root  run21670_p
-rocessed_v5.root  run21667_processed_v5.root  run21663_processed_v5.root  run21664_processed_v5.root  run21665_processed_v5.root  run21671run21671_processed_v5.root run21672_processed_v5.root run21673_processe
-d_v5.root run21674_processed_v5.root run21675_processed_v5.root run21676_processed_v5.root run21677_processed_v5.root run21678_processed_v5.root run21679_processed_v5.root run21680_processed_v5.root run21681_p
-rocessed_v5.root run21682_processed_v5.root run21683_processed_v5.root run21684_processed_v5.root run21685_processed_v5.root run21686_processed_v5.root run21687_processed_v5.root
-
-
-./PlotCombined /data13/coherent/data/d2o/processedData/run21666_processed_v5.root \ run21667_processed_v5.root \ run21668_processed_v5.root \ run21669_processed_v5.root \ run21670_processed_v5.root \ run21667_processed_v5.root \ run21663_processed_v5.root \ run21664_processed_v5.root \ run21665_processed_v5.root \ run21671run21671_processed_v5.root \ run21672_processed_v5.root \ run21673_processed_v5.root \ run21674_processed_v5.root \ run21675_processed_v5.root \ run21676_processed_v5.root \ run21677_processed_v5.root \ run21678_processed_v5.root \ run21679_processed_v5.root \ run21680_processed_v5.root \ run21681_processed_v5.root / run21682_processed_v5.root \ run21683_processed_v5.root run21684_processed_v5.root \ run21685_processed_v5.root run21686_processed_v5.root \ run21687_processed_v5.root
+./PlotCombined /data13/coherent/data/d2o/processedData/run21666_processed_v5.root /data13/coherent/data/d2o/processedData/run21667_processed_v5.root /data13/coherent/data/d2o/pr
+ocessedData/run21668_processed_v5.root /data13/coherent/data/d2o/processedData/run21669_processed_v5.root /data13/coherent/data/d2o/processedData/run21670_processed_v5.root  /data13/coherent/data/d2o/processed
+Data/run21667_processed_v5.root  /data13/coherent/data/d2o/processedData/run21663_processed_v5.root  /data13/coherent/data/d2o/processedData/run21664_processed_v5.root  /data13/coherent/data/d2o/processedData/
+run21665_processed_v5.root  /data13/coherent/data/d2o/processedData/run21671_processed_v5.root /data13/coherent/data/d2o/processedData/run21672_processed_v5.root /data13/coherent/data/d2o/processedData
+/run21673_processed_v5.root /data13/coherent/data/d2o/processedData/run21674_processed_v5.root /data13/coherent/data/d2o/processedData/run21675_processed_v5.root /data13/coherent/data/d2o/processedData/run2167
+6_processed_v5.root /data13/coherent/data/d2o/processedData/run21677_processed_v5.root /data13/coherent/data/d2o/processedData/run21678_processed_v5.root /data13/coherent/data/d2o/processedData/run21679_proces
+sed_v5.root /data13/coherent/data/d2o/processedData/run21680_processed_v5.root /data13/coherent/data/d2o/processedData/run21681_processed_v5.root /data13/coherent/data/d2o/processedData/run21682_processed_v5.r
+oot /data13/coherent/data/d2o/processedData/run21683_processed_v5.root /data13/coherent/data/d2o/processedData/run21684_processed_v5.root /data13/coherent/data/d2o/processedData/run21685_processed_v5.root /dat
+a13/coherent/data/d2o/processedData/run21686_processed_v5.root /data13/coherent/data/d2o/processedData/run21687_processed_v5.root

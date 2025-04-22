@@ -1,12 +1,14 @@
-//This code do Gaussian fit for low light trigger events. Which is a single-pe calibration. It plots the histogram of area and fits the Gaussian.
 #include <iostream>
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1F.h>
 #include <TCanvas.h>
 #include <TF1.h>
-#include <TPaveStats.h> // Include TPaveStats header
-#include <TLatex.h>     // Include TLatex header
+#include <TPaveStats.h>
+#include <TLatex.h>
+#include <TSystem.h>
+#include <TStyle.h>
+#include <TROOT.h>
 #include <vector>
 #include <algorithm>
 #include <cmath>
@@ -15,26 +17,23 @@ using namespace std;
 
 // Define the fitting function
 Double_t SPEfit(Double_t *x, Double_t *par) {
-    Double_t A0 = par[0];    // Amplitude of the pedestal peak
-    Double_t mu0 = par[1];   // Mean of the pedestal peak
-    Double_t sigma0 = par[2]; // Standard deviation of the pedestal peak
-    Double_t A1 = par[3];    // Amplitude of the single photoelectron peak
-    Double_t mu1 = par[4];   // Mean of the single photoelectron peak
-    Double_t sigma1 = par[5]; // Standard deviation of the single photoelectron peak
-    Double_t A2 = par[6];    // Amplitude of the second peak
-    Double_t A3 = par[7];    // Amplitude of the third peak
+    Double_t A0 = par[0], mu0 = par[1], sigma0 = par[2];
+    Double_t A1 = par[3], mu1 = par[4], sigma1 = par[5];
+    Double_t A2 = par[6], A3 = par[7];
 
-    // Define the Gaussian terms for the fit
-    Double_t term1 = A0 * exp(-0.5 * pow((x[0] - mu0) / sigma0, 2)); // Pedestal peak
-    Double_t term2 = A1 * exp(-0.5 * pow((x[0] - mu1) / sigma1, 2)); // Single photoelectron peak
-    Double_t term3 = A2 * exp(-0.5 * pow((x[0] - sqrt(2) * mu1) / sqrt(2 * sigma1 * sigma1 - sigma0 * sigma0), 2)); // Second peak
-    Double_t term4 = A3 * exp(-0.5 * pow((x[0] - sqrt(3) * mu1) / sqrt(3 * sigma1 * sigma1 - 2 * sigma0 * sigma0), 2)); // Third peak
-
-    return term1 + term2 + term3 + term4; // Return the sum of all terms
+    Double_t term1 = A0 * exp(-0.5 * pow((x[0] - mu0) / sigma0, 2));
+    Double_t term2 = A1 * exp(-0.5 * pow((x[0] - mu1) / sigma1, 2));
+    Double_t term3 = A2 * exp(-0.5 * pow((x[0] - sqrt(2) * mu1)
+                         / sqrt(2*sigma1*sigma1 - sigma0*sigma0), 2));
+    Double_t term4 = A3 * exp(-0.5 * pow((x[0] - sqrt(3) * mu1)
+                         / sqrt(3*sigma1*sigma1 - 2*sigma0*sigma0), 2));
+    return term1 + term2 + term3 + term4;
 }
 
-// Function to process the ROOT file and generate energy distributions
 void processLowLightEvents(const char *fileName) {
+    // Create output directory
+    gSystem->mkdir("plots", kTRUE);
+
     // Open the ROOT file
     TFile *file = TFile::Open(fileName);
     if (!file || file->IsZombie()) {
@@ -42,7 +41,7 @@ void processLowLightEvents(const char *fileName) {
         return;
     }
 
-    // Access the TTree named "tree" from the ROOT file
+    // Access the TTree
     TTree *tree = (TTree*)file->Get("tree");
     if (!tree) {
         cerr << "Error accessing TTree 'tree'!" << endl;
@@ -50,224 +49,179 @@ void processLowLightEvents(const char *fileName) {
         return;
     }
 
-    // Declare variables to store data from the TTree
-    Short_t adcVal[23][45]; // ADC values for 23 channels and 45 time bins
-    Double_t area[23];      // Area for each channel
-    Int_t triggerBits;      // Trigger bits to identify low light LED events
-
-    // Set branch addresses to read data from the TTree
+    // Branch variables
+    Short_t adcVal[23][45];
+    Double_t area[23];
+    Int_t triggerBits;
     tree->SetBranchAddress("adcVal", adcVal);
     tree->SetBranchAddress("area", area);
     tree->SetBranchAddress("triggerBits", &triggerBits);
 
-    // Get the total number of entries in the TTree
     Long64_t nEntries = tree->GetEntries();
 
-    // Create histograms to store the area (energy) distributions for each PMT
+    // Prepare histograms
     TH1F *histArea[12];
     for (int i = 0; i < 12; i++) {
-        histArea[i] = new TH1F(Form("PMT%d_Area", i + 1), Form("; Area; Events per 3 ADCs", i + 1), 150, -50, 400);
-        histArea[i]->SetLineColor(kRed); // Set histogram line color to red
+        histArea[i] = new TH1F(Form("PMT%d_Area", i+1),
+                               Form("; Area; Events per 3 ADCs", i+1),
+                               150, -50, 400);
+        histArea[i]->SetLineColor(kRed);
+        histArea[i]->GetXaxis()->SetLabelFont(42);
+        histArea[i]->GetYaxis()->SetLabelFont(42);
+        histArea[i]->GetXaxis()->SetTitleFont(42);
+        histArea[i]->GetYaxis()->SetTitleFont(42);
     }
 
-    // Mapping of PMT channels
-    int pmtChannelMap[12] = {0, 10, 7, 2, 6, 3, 8, 9, 11, 4, 5, 1};
+    int pmtChannelMap[12] = {0,10,7,2,6,3,8,9,11,4,5,1};
 
-    // Loop over all events in the TTree
-    for (Long64_t entry = 0; entry < nEntries; entry++) {
-        tree->GetEntry(entry);
-
-        // Check if the event is a low light LED event (triggerBits = 16)
+    // Fill histograms
+    for (Long64_t ev = 0; ev < nEntries; ++ev) {
+        tree->GetEntry(ev);
         if (triggerBits == 16) {
-            // Loop through the 12 PMTs and fill their area distributions
-            for (int pmt = 0; pmt < 12; pmt++) {
-                int adcIndex = pmtChannelMap[pmt]; // Map PMT channels
-                histArea[pmt]->Fill(area[adcIndex]); // Fill the histogram with the area
+            for (int p = 0; p < 12; ++p) {
+                histArea[p]->Fill(area[pmtChannelMap[p]]);
             }
         }
     }
 
-    // Create a canvas to draw the histograms
-    TCanvas *canvas = new TCanvas("canvas", "PMT Energy Distributions", 800, 600);
+    // (1) Draw individual histograms as before…
+    TCanvas *canvas = new TCanvas("canvas","PMT Energy Distributions",1200,800);
+    canvas->SetLeftMargin(0.15);
+    canvas->SetRightMargin(0.05);
+    canvas->SetBottomMargin(0.15);
+    canvas->SetTopMargin(0.05);
+    for (int i = 0; i < 12; ++i) {
+        canvas->Clear();
+        histArea[i]->GetXaxis()->SetTitleSize(0.05);
+        histArea[i]->GetYaxis()->SetTitleSize(0.05);
+        histArea[i]->GetXaxis()->SetLabelSize(0.04);
+        histArea[i]->GetYaxis()->SetLabelSize(0.04);
 
-    // Adjust margins and text size for better visibility
-    canvas->SetLeftMargin(0.15);   // Increase left margin
-    canvas->SetRightMargin(0.05);  // Adjust right margin
-    canvas->SetBottomMargin(0.15); // Increase bottom margin
-    canvas->SetTopMargin(0.05);    // Adjust top margin
+        TF1 *f = new TF1("f", SPEfit, -50, 400, 8);
+        f->SetParameters(1000,0,10,1000,50,10,500,500);
+        f->SetLineColor(kBlue);
+        f->SetParNames("A0","#mu_{0}","#sigma_{0}","A1","#mu_{1}","#sigma_{1}","A2","A3");
 
-    // Save each histogram as a PNG file
-    for (int i = 0; i < 12; i++) {
-        canvas->Clear(); // Clear the canvas for the next histogram
-
-        // Adjust histogram text size
-        histArea[i]->GetXaxis()->SetTitleSize(0.05); // Increase x-axis title size
-        histArea[i]->GetYaxis()->SetTitleSize(0.05); // Increase y-axis title size
-        histArea[i]->GetXaxis()->SetLabelSize(0.04); // Increase x-axis label size
-        histArea[i]->GetYaxis()->SetLabelSize(0.04); // Increase y-axis label size
-
-        // Fit the histogram with the SPEfit function
-        TF1 *fitFunc = new TF1("fitFunc", SPEfit, -50, 400, 8);
-        fitFunc->SetParameters(1000, 0, 10, 1000, 50, 10, 500, 500); // Initial parameters
-        fitFunc->SetLineColor(kBlue); // Set fit line color to blue
-
-        // Set custom parameter names
-        fitFunc->SetParName(0, "A0");
-        fitFunc->SetParName(1, "#mu_{0}");
-        fitFunc->SetParName(2, "#sigma_{0}");
-        fitFunc->SetParName(3, "A1");
-        fitFunc->SetParName(4, "#mu_{1}");
-        fitFunc->SetParName(5, "#sigma_{1}");
-        fitFunc->SetParName(6, "A2");
-        fitFunc->SetParName(7, "A3");
-
-        histArea[i]->Fit("fitFunc", "R"); // Perform the fit
-
-        // Draw the histogram and the fit
+        histArea[i]->Fit(f,"R");
         histArea[i]->Draw();
-        fitFunc->Draw("same");
+        f->Draw("same");
 
-        // Add a title to the individual plot
-        TLatex *title = new TLatex();
-        title->SetTextSize(0.06); // Set text size
-        title->SetTextAlign(22);  // Center alignment
-        title->SetNDC(true);      // Use normalized coordinates
-        title->DrawLatex(0.5, 0.92, Form("PMT %d", i + 1)); // Draw title at the top center
+        TLatex tex;
+        tex.SetTextFont(42);
+        tex.SetTextSize(0.06);
+        tex.SetTextAlign(22);
+        tex.SetNDC();
+        tex.DrawLatex(0.5, 0.92, Form("PMT %d", i+1));
 
-        // Enable statistics box and customize it
-        gPad->Update(); // Update the canvas to ensure the stats box is drawn
-        TPaveStats *stats = (TPaveStats*)histArea[i]->FindObject("stats");
-        if (stats) {
-            stats->SetX1NDC(0.4); // Set X position of the stats box (move it further left)
-            stats->SetY1NDC(0.4); // Set Y position of the stats box (move it higher)
-            stats->SetX2NDC(0.90); // Set width of the stats box (widen the box more)
-            stats->SetY2NDC(0.85); // Set height of the stats box (tall the box more)
-            stats->SetTextColor(kBlack); // Set text color
-            stats->SetTextSize(0.05); // Set larger text size
-            stats->SetOptStat(10); // Show only entries
-            stats->SetOptFit(111); // Show fit parameters
-            stats->SetName(""); // Remove the title from the stats box
+        gPad->Update();
+        if (auto stats = (TPaveStats*)histArea[i]->FindObject("stats")) {
+            stats->SetX1NDC(0.65); stats->SetY1NDC(0.65);
+            stats->SetX2NDC(0.95); stats->SetY2NDC(0.95);
+            stats->SetTextFont(42);
+            stats->SetTextSize(0.03);
+            stats->SetOptStat(10);
+            stats->SetOptFit(111);
+            stats->SetName("");
         }
 
-        canvas->SaveAs(Form("PMT%d_Energy_Distribution.png", i + 1)); // Save as PNG
-
-        // Clean up
-        delete fitFunc;
-        delete title;
-    }
-
-    // Create a master canvas for the combined plot
-    TCanvas *masterCanvas = new TCanvas("MasterCanvas", "Combined PMT Energy Distributions", 3600, 3000);
-    masterCanvas->Divide(3, 4, 0, 0); // Adjust spacing between subplots
-
-    // Define the layout of PMT channels on the canvas
-    int layout[4][3] = {
-        {9, 3, 7},  // Row 1: PMT 10, PMT 4, PMT 8
-        {5, 4, 8},  // Row 2: PMT 6, PMT 5, PMT 9
-        {0, 6, 1},  // Row 3: PMT 1, PMT 7, PMT 2
-        {10, 11, 2} // Row 4: PMT 11, PMT 12, PMT 3
-    };
-
-    // Loop through the layout to plot histograms on the master canvas
-    for (int row = 0; row < 4; row++) {
-        for (int col = 0; col < 3; col++) {
-            int padPosition = row * 3 + col + 1; // Calculate pad position (1-12)
-            masterCanvas->cd(padPosition); // Switch to the specific pad
-
-            int pmtIndex = layout[row][col]; // Get PMT index from layout
-
-            // Adjust histogram text size
-            histArea[pmtIndex]->GetXaxis()->SetTitleSize(0.07); // Increase x-axis title size
-            histArea[pmtIndex]->GetYaxis()->SetTitleSize(0.09); // Increase y-axis title size
-            histArea[pmtIndex]->GetXaxis()->SetLabelSize(0.04); // Increase x-axis label size
-            histArea[pmtIndex]->GetYaxis()->SetLabelSize(0.04); // Increase y-axis label size
-
-            // Ensure Y-axis label is visible
-            histArea[pmtIndex]->GetYaxis()->SetTitle("Events per 3 ADCs");
-            histArea[pmtIndex]->GetYaxis()->SetTitleOffset(0.8); // Move Y-axis title closer to the axis line
-
-            // Ensure X-axis label is visible
-            histArea[pmtIndex]->GetXaxis()->SetTitle("Area");
-
-            // Adjust margins for each subplot
-            gPad->SetLeftMargin(0.15);   // Increase left margin
-            gPad->SetRightMargin(0.00); // Adjust right margin
-            gPad->SetBottomMargin(0.15); // Increase bottom margin
-            gPad->SetTopMargin(0.01);    // Adjust top margin
-
-            // Fit the histogram with the SPEfit function
-            TF1 *fitFunc = new TF1("fitFunc", SPEfit, -50, 400, 8);
-            fitFunc->SetParameters(100, 0, 10, 100, 50, 10, 50, 50); // Initial parameters
-            fitFunc->SetLineColor(kBlue); // Set fit line color to blue
-
-            // Set custom parameter names
-            fitFunc->SetParName(0, "A0");
-            fitFunc->SetParName(1, "#mu_{0}");
-            fitFunc->SetParName(2, "#sigma_{0}");
-            fitFunc->SetParName(3, "A1");
-            fitFunc->SetParName(4, "#mu_{1}");
-            fitFunc->SetParName(5, "#sigma_{1}");
-            fitFunc->SetParName(6, "A2");
-            fitFunc->SetParName(7, "A3");
-
-            histArea[pmtIndex]->Fit("fitFunc", "R"); // Perform the fit
-
-            // Draw the histogram and the fit
-            histArea[pmtIndex]->Draw();
-            fitFunc->Draw("same");
-
-            // Add a title to the subplot
-            TLatex *title = new TLatex();
-            title->SetTextSize(0.14); // Set larger font size
-            title->SetTextAlign(22);  // Center alignment
-            title->SetNDC(true);      // Use normalized coordinates
-            title->DrawLatex(0.5, 0.92, Form("PMT %d", pmtIndex + 1)); // Draw title at the top center
-
-            // Enable statistics box and customize it
-            gPad->Update(); // Update the canvas to ensure the stats box is drawn
-            TPaveStats *stats = (TPaveStats*)histArea[pmtIndex]->FindObject("stats");
-            if (stats) {
-                stats->SetX1NDC(0.4); // Set X position of the stats box (move it further left)
-                stats->SetY1NDC(0.4); // Set Y position of the stats box (move it higher)
-                stats->SetX2NDC(0.90); // Set width of the stats box (widen the box more)
-                stats->SetY2NDC(0.85); // Set height of the stats box (tall the box more)
-                stats->SetTextColor(kBlack); // Set text color
-                stats->SetTextSize(0.05); // Set larger text size
-                stats->SetOptStat(10); // Show only entries
-                stats->SetOptFit(111); // Show fit parameters
-                stats->SetName(""); // Remove the title from the stats box
-            }
-
-            // Clean up
-            delete fitFunc;
-            delete title;
-        }
-    }
-
-    // Save the combined canvas as a PNG file
-    masterCanvas->SaveAs("Combined_PMT_Energy_Distributions.png");
-
-    // Clean up
-    for (int i = 0; i < 12; i++) {
-        delete histArea[i];
+        canvas->SaveAs(Form("plots/PMT%d_Energy_Distribution.png", i+1));
+        delete f;
     }
     delete canvas;
-    delete masterCanvas;
+
+    // (2) Create the master canvas with double resolution and vector exports
+    //    → Sharp PDF text + high‐res PNG
+    gStyle->SetTextFont(42);
+    gStyle->SetLabelFont(42, "XYZ");
+    gStyle->SetTitleFont(42, "XYZ");
+
+    // Increase export resolution by factor 2
+    gStyle->SetImageScaling(2.0);
+
+    TCanvas *master = new TCanvas("MasterCanvas",
+                                  "Combined PMT Energy Distributions",
+                                  2400, 1600);
+    master->Divide(3,4,0,0);
+    int layout[4][3] = {
+        {0,10,7},
+        {2,6,3},
+        {8,9,11},
+        {4,5,1}
+    };
+
+    for (int r = 0; r < 4; ++r) {
+      for (int c = 0; c < 3; ++c) {
+        int pad = r*3 + c + 1;
+        master->cd(pad);
+
+        int idx = layout[r][c];
+        histArea[idx]->GetXaxis()->SetTitleSize(0.07);
+        histArea[idx]->GetYaxis()->SetTitleSize(0.09);
+        histArea[idx]->GetXaxis()->SetLabelSize(0.04);
+        histArea[idx]->GetYaxis()->SetLabelSize(0.04);
+        histArea[idx]->GetYaxis()->SetTitle("Events per 3 ADCs");
+        histArea[idx]->GetYaxis()->SetTitleOffset(0.8);
+        histArea[idx]->GetXaxis()->SetTitle("Area");
+    
+
+        gPad->SetLeftMargin(0.15);
+        gPad->SetRightMargin(0.12);
+        gPad->SetBottomMargin(0.15);
+        gPad->SetTopMargin(0.10);
+
+        TF1 *f2 = new TF1("f2", SPEfit, -50, 400, 8);
+        f2->SetParameters(100,0,10,100,50,10,50,50);
+        f2->SetLineColor(kBlue);
+        f2->SetParNames("A0","#mu_{0}","#sigma_{0}",
+                        "A1","#mu_{1}","#sigma_{1}","A2","A3");
+
+        histArea[idx]->Fit(f2,"R");
+        histArea[idx]->Draw();
+        f2->Draw("same");
+
+        TLatex tex2;
+        tex2.SetTextFont(42);
+        tex2.SetTextSize(0.14);
+        tex2.SetTextAlign(22);
+        tex2.SetNDC();
+        tex2.DrawLatex(0.5, 0.92, Form("PMT %d", idx+1));
+
+        gPad->Update();
+        if (auto s2 = (TPaveStats*)histArea[idx]->FindObject("stats")) {
+          s2->SetX1NDC(0.65); s2->SetY1NDC(0.65);
+          s2->SetX2NDC(0.95); s2->SetY2NDC(0.95);
+          s2->SetTextFont(42);
+          s2->SetTextSize(0.03);
+          s2->SetOptStat(10);
+          s2->SetOptFit(111);
+          s2->SetName("");
+        }
+
+        delete f2;
+      }
+    }
+
+    // Export sharp text
+    master->SaveAs("plots/Combined_PMT_Energy_Distributions.pdf");
+    master->SaveAs("plots/Combined_PMT_Energy_Distributions.png");
+
+    // Restore default scaling
+    gStyle->SetImageScaling(1.0);
+
+    // Cleanup
+    for (int i = 0; i < 12; ++i) delete histArea[i];
+    delete master;
     file->Close();
 
-    cout << "Energy distributions for low light LED events saved as PNG files." << endl;
-    cout << "Combined image saved as Combined_PMT_Energy_Distributions.png" << endl;
+    cout << "Plots saved under 'plots/'. "
+         << "Vector text in PDF + high‐res PNG available." << endl;
 }
 
-// Main function to handle command-line arguments
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         cerr << "Usage: " << argv[0] << " <root_file>" << endl;
         return 1;
     }
-
-    const char* fileName = argv[1];
-    processLowLightEvents(fileName);
-
+    processLowLightEvents(argv[1]);
     return 0;
 }
